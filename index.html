@@ -14,6 +14,7 @@
                     colors: {
                         'primary-bs': '#4a7c59', // Tono de verde amigable
                         'secondary-usd': '#003865', // Azul oscuro
+                        'warning-bs': '#ffc107', // Amarillo para advertencias/saldo
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
@@ -24,9 +25,8 @@
     </script>
     <!-- Carga de la fuente Inter de Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
-    <!-- Carga de las librerías jspdf y jspdf-autotable -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://unpkg.com/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.js"></script>
+    <!-- Carga de la librería html2canvas para generar la imagen -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         /* Estilos personalizados para el fondo y la tabla */
         body {
@@ -43,6 +43,12 @@
                 font-size: 0.8rem;
             }
         }
+        /* Estilo para el área que se capturará en la imagen */
+        #capture-area {
+            background-color: #ffffff; /* Asegura un fondo blanco para la imagen */
+            padding: 1rem;
+            border-radius: 0.75rem;
+        }
     </style>
 </head>
 <body class="p-4 sm:p-8 min-h-screen">
@@ -53,24 +59,35 @@
             <p class="text-secondary-usd text-lg font-medium">Gestión de Productos en USD y Bs.</p>
         </header>
 
-        <!-- Sección de Tasa de Cambio -->
+        <!-- Área de Tasa de Cambio y Saldo Inicial -->
         <section id="rate-section" class="bg-white p-6 rounded-xl mb-6 container-card border border-gray-100">
             <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
                 <svg class="w-6 h-6 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 4v2m0 2v2m0 0a3 3 0 01-3 3h6a3 3 0 01-3-3m-6 3a3 3 0 00-3 3v1h18v-1a3 3 0 00-3-3m-6 0h.01"></path></svg>
-                Tasa de Cambio (Bs. / $1 USD)
+                Configuración Financiera
             </h2>
-            <div class="flex flex-col sm:flex-row gap-4 items-end">
-                <div class="flex-grow w-full">
-                    <label for="exchange-rate" class="block text-sm font-medium text-gray-500 mb-1">Valor Actual</label>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                <!-- Tasa de Cambio -->
+                <div class="flex flex-col gap-2">
+                    <label for="exchange-rate" class="block text-sm font-medium text-gray-500 mb-1">Tasa de Cambio (Bs. / $1 USD)</label>
                     <input type="number" step="0.01" min="0.01" id="exchange-rate" placeholder="Ej: 36.50"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-bs focus:border-primary-bs transition duration-150 ease-in-out">
+                    <p id="current-rate-display" class="text-sm text-gray-600 font-medium"></p>
                 </div>
-                <button onclick="saveExchangeRate()"
-                        class="w-full sm:w-auto px-6 py-2 bg-primary-bs text-white font-semibold rounded-lg hover:bg-primary-bs/90 transition duration-150 ease-in-out shadow-md">
-                    Guardar Tasa
+
+                <!-- Saldo Inicial en Bs. -->
+                <div class="flex flex-col gap-2">
+                    <label for="initial-balance-bs" class="block text-sm font-medium text-gray-500 mb-1">Saldo Inicial (Bolívares Bs.)</label>
+                    <input type="number" step="0.01" min="0" id="initial-balance-bs" placeholder="Ej: 1000.00"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-bs focus:border-primary-bs transition duration-150 ease-in-out">
+                    <p id="current-balance-display" class="text-sm text-gray-600 font-medium"></p>
+                </div>
+                
+                <!-- Botón de Guardar Único -->
+                <button onclick="saveFinancialConfig()"
+                        class="w-full md:col-span-2 px-6 py-2 bg-primary-bs text-white font-semibold rounded-lg hover:bg-primary-bs/90 transition duration-150 ease-in-out shadow-md mt-2">
+                    Guardar Tasa y Saldo Inicial
                 </button>
             </div>
-            <p id="current-rate-display" class="mt-3 text-sm text-gray-600 font-medium"></p>
         </section>
 
         <!-- Sección de Agregar Producto -->
@@ -108,39 +125,48 @@
                 <svg class="w-6 h-6 mr-2 text-primary-bs" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
                 Inventario Actual
             </h2>
+            
+            <!-- Área a capturar como imagen -->
+            <div id="capture-area" class="border border-gray-300">
+                <div class="overflow-x-auto relative rounded-lg mb-4">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-white uppercase bg-primary-bs">
+                            <tr>
+                                <th scope="col" class="py-3 px-2 sm:px-4">Producto</th>
+                                <th scope="col" class="py-3 px-2 sm:px-4 text-center">Cant.</th>
+                                <th scope="col" class="py-3 px-2 sm:px-4 text-right">Precio ($)</th>
+                                <th scope="col" class="py-3 px-2 sm:px-4 text-right">Subtotal (Bs.)</th>
+                                <th scope="col" class="py-3 px-2 sm:px-4 text-center print:hidden">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-body">
+                            <!-- Filas de productos se insertarán aquí -->
+                        </tbody>
+                    </table>
+                    <p id="empty-message" class="text-center py-4 text-gray-500 bg-white" style="display:none;">
+                        No hay productos en el inventario.
+                    </p>
+                </div>
 
-            <div class="overflow-x-auto relative shadow-md rounded-lg mb-6">
-                <table class="w-full text-sm text-left text-gray-500">
-                    <thead class="text-xs text-white uppercase bg-primary-bs">
-                        <tr>
-                            <th scope="col" class="py-3 px-2 sm:px-4">Producto</th>
-                            <th scope="col" class="py-3 px-2 sm:px-4 text-center">Cant.</th>
-                            <th scope="col" class="py-3 px-2 sm:px-4 text-right">Precio ($)</th>
-                            <th scope="col" class="py-3 px-2 sm:px-4 text-right">Subtotal (Bs.)</th>
-                            <th scope="col" class="py-3 px-2 sm:px-4 text-center">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody id="inventory-body">
-                        <!-- Filas de productos se insertarán aquí -->
-                    </tbody>
-                </table>
-                <p id="empty-message" class="text-center py-4 text-gray-500 bg-white" style="display:none;">
-                    No hay productos en el inventario.
-                </p>
+                <!-- Totales Generales y Resumen de Saldo -->
+                <div id="totals-summary" class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mt-2 p-4 rounded-xl bg-gray-100 border border-gray-200">
+                    <!-- Totales -->
+                    <div class="mb-4 sm:mb-0 space-y-1">
+                        <p class="text-base font-bold text-gray-700">Total General USD: <span id="total-usd" class="text-secondary-usd ml-2 text-lg"></span></p>
+                        <p class="text-base font-bold text-gray-700">Total General Bs.: <span id="total-bs" class="text-primary-bs ml-2 text-lg"></span></p>
+                        <p class="text-base font-bold text-gray-700 mt-2 border-t border-gray-300 pt-2">
+                            Saldo Restante Bs.: <span id="remaining-balance-bs" class="text-lg ml-2 font-extrabold"></span>
+                        </p>
+                    </div>
+                </div>
             </div>
 
-            <!-- Totales Generales y Exportación -->
-            <div id="totals-summary" class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mt-4 p-4 rounded-xl bg-gray-50 border border-gray-200">
-                <!-- Totales -->
-                <div class="mb-4 sm:mb-0">
-                    <p class="text-base font-bold text-gray-700">Total General USD: <span id="total-usd" class="text-secondary-usd ml-2 text-lg"></span></p>
-                    <p class="text-base font-bold text-gray-700">Total General Bs.: <span id="total-bs" class="text-primary-bs ml-2 text-lg"></span></p>
-                </div>
-                <!-- Botón de Exportar -->
-                <button onclick="exportToPDF()" id="export-btn" disabled
-                        class="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition duration-150 ease-in-out shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    Exportar a PDF
+            <!-- Botón de Exportar (Fuera del área de captura para que no aparezca en la imagen) -->
+            <div class="mt-4 flex justify-end">
+                <button onclick="exportToJPG()" id="export-btn" disabled
+                        class="w-full sm:w-auto px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition duration-150 ease-in-out shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Exportar a JPG
                 </button>
             </div>
         </section>
@@ -160,10 +186,11 @@
     <script>
         // Definición de variables globales y claves de almacenamiento
         let exchangeRate = 0;
+        let initialBalanceBs = 0; // Nuevo saldo inicial
         let products = [];
         const RATE_KEY = 'inventarioRate';
+        const BALANCE_KEY = 'inventarioBalanceBs'; // Nueva clave para el saldo
         const PRODUCTS_KEY = 'inventarioProducts';
-        const doc = window.jspdf.jsPDF; // Referencia a jspdf
 
         // --- Funciones de Utilidad ---
 
@@ -193,40 +220,72 @@
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
         };
         
-        // --- Manejo de la Tasa de Cambio ---
+        // --- Manejo de la Tasa de Cambio y Saldo ---
 
-        /** Guarda la tasa de cambio en localStorage y actualiza la UI. */
-        function saveExchangeRate() {
+        /** Guarda la configuración financiera (tasa y saldo) en localStorage y actualiza la UI. */
+        function saveFinancialConfig() {
             const rateInput = document.getElementById('exchange-rate');
+            const balanceInput = document.getElementById('initial-balance-bs');
+            
             const newRate = parseFloat(rateInput.value);
+            const newBalance = parseFloat(balanceInput.value);
 
-            if (isNaN(newRate) || newRate <= 0) {
-                showModal("Error de Tasa", "Por favor, ingrese una tasa de cambio válida y positiva (Bs. por $1 USD).", true);
+            let rateValid = true;
+            let balanceValid = true;
+
+            // 1. Validar y guardar la tasa
+            if (!isNaN(newRate) && newRate > 0) {
+                exchangeRate = newRate;
+                localStorage.setItem(RATE_KEY, newRate.toString());
+            } else if (rateInput.value.trim() !== "") {
+                rateValid = false;
+                showModal("Error de Tasa", "La Tasa de Cambio debe ser un valor numérico positivo.", true);
                 return;
             }
 
-            exchangeRate = newRate;
-            localStorage.setItem(RATE_KEY, newRate.toString());
-            renderInventory();
-            rateInput.value = ''; // Limpiar campo después de guardar
-            showModal("Tasa Guardada", `La tasa de cambio se ha actualizado a ${formatBs(newRate)} por $1 USD.`, false);
+            // 2. Validar y guardar el saldo inicial
+            if (!isNaN(newBalance) && newBalance >= 0) {
+                initialBalanceBs = newBalance;
+                localStorage.setItem(BALANCE_KEY, newBalance.toString());
+            } else if (balanceInput.value.trim() !== "") {
+                 balanceValid = false;
+                 showModal("Error de Saldo", "El Saldo Inicial debe ser un valor numérico positivo o cero.", true);
+                 return;
+            }
+            
+            // Si todo es válido o los campos están vacíos (no se intenta cambiar)
+            if (rateValid && balanceValid) {
+                renderInventory();
+                rateInput.value = ''; // Limpiar campo después de guardar
+                balanceInput.value = ''; // Limpiar campo después de guardar
+                showModal("Configuración Guardada", `Configuración actualizada. Tasa: ${formatBs(exchangeRate)} | Saldo Inicial: ${formatBs(initialBalanceBs)}`, false);
+            }
         }
 
-        /** Carga la tasa de cambio desde localStorage. */
-        function loadExchangeRate() {
+        /** Carga la configuración financiera desde localStorage. */
+        function loadFinancialConfig() {
+            // Cargar Tasa
             const storedRate = localStorage.getItem(RATE_KEY);
             exchangeRate = storedRate ? parseFloat(storedRate) : 0;
-
             const rateDisplay = document.getElementById('current-rate-display');
+
             if (exchangeRate > 0) {
-                rateDisplay.textContent = `Tasa actual: 1 USD = ${formatBs(exchangeRate)}`;
+                rateDisplay.textContent = `Tasa guardada: 1 USD = ${formatBs(exchangeRate)}`;
                 rateDisplay.classList.remove('text-red-500');
                 rateDisplay.classList.add('text-primary-bs');
             } else {
-                rateDisplay.textContent = '¡Advertencia! Tasa de cambio no establecida. No se pueden calcular los totales en Bs.';
+                rateDisplay.textContent = '¡Advertencia! Tasa de cambio no establecida.';
                 rateDisplay.classList.remove('text-primary-bs');
                 rateDisplay.classList.add('text-red-500');
             }
+            
+            // Cargar Saldo Inicial
+            const storedBalance = localStorage.getItem(BALANCE_KEY);
+            initialBalanceBs = storedBalance ? parseFloat(storedBalance) : 0;
+            const balanceDisplay = document.getElementById('current-balance-display');
+            
+            balanceDisplay.textContent = `Saldo inicial guardado: ${formatBs(initialBalanceBs)}`;
+            balanceDisplay.classList.add('text-primary-bs'); // Siempre verde si es válido (>= 0)
         }
 
         // --- Manejo de Productos ---
@@ -278,29 +337,34 @@
         /** Elimina un producto por su ID. */
         function deleteProduct(id) {
             // Usar un modal de confirmación visual en lugar de window.confirm()
-            const confirmed = confirm(`¿Está seguro de que desea eliminar este producto del inventario?`);
-            if (confirmed) {
-                products = products.filter(p => p.id !== id);
-                saveProducts();
-                renderInventory();
-                showModal("Producto Eliminado", "El producto fue eliminado exitosamente del inventario.", false);
-            }
+             window.confirm(`¿Está seguro de que desea eliminar este producto del inventario?`)
+                .then(confirmed => {
+                    if (confirmed) {
+                        products = products.filter(p => p.id !== id);
+                        saveProducts();
+                        renderInventory();
+                        showModal("Producto Eliminado", "El producto fue eliminado exitosamente del inventario.", false);
+                    }
+                });
         }
         
         // --- Renderizado y Cálculos ---
 
         /** Renderiza la tabla de inventario y calcula los totales. */
         function renderInventory() {
-            loadExchangeRate(); // Asegura que la tasa esté cargada
+            loadFinancialConfig(); // Asegura que la tasa y el saldo estén cargados
             loadProducts(); // Asegura que los productos estén cargados
+            
             const body = document.getElementById('inventory-body');
             const emptyMessage = document.getElementById('empty-message');
             const exportBtn = document.getElementById('export-btn');
+            const remainingBalanceEl = document.getElementById('remaining-balance-bs');
 
             body.innerHTML = '';
             let totalUSD = 0;
             let totalBs = 0;
 
+            // 1. Mostrar estado de la tabla
             if (products.length === 0) {
                 emptyMessage.style.display = 'block';
                 exportBtn.disabled = true;
@@ -309,6 +373,7 @@
                 exportBtn.disabled = false;
             }
 
+            // 2. Renderizar filas y calcular totales
             products.forEach(product => {
                 const subtotalUSD = product.priceUSD * product.quantity;
                 const subtotalBs = exchangeRate > 0 ? subtotalUSD * exchangeRate : 0;
@@ -319,7 +384,7 @@
                 const row = body.insertRow();
                 row.className = 'bg-white border-b hover:bg-gray-50';
 
-                // Producto
+                // Nombre
                 row.insertCell().textContent = product.name;
 
                 // Cantidad
@@ -338,11 +403,11 @@
                 } else {
                     subtotalCell.textContent = 'Tasa no fijada';
                     subtotalCell.className = 'text-right text-gray-400';
-                          }
-                
-                // Acción (Eliminar)
+                }
+                                
+                // Acción (Eliminar) - Solo visible en pantalla
                 const actionCell = row.insertCell();
-                actionCell.className = 'text-center';
+                actionCell.className = 'text-center print:hidden';
                 const deleteBtn = document.createElement('button');
                 deleteBtn.innerHTML = `<svg class="w-5 h-5 text-red-500 hover:text-red-700 transition duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
                 deleteBtn.title = 'Eliminar producto';
@@ -350,117 +415,85 @@
                 actionCell.appendChild(deleteBtn);
             });
 
-            // Actualizar totales generales
+            // 3. Actualizar totales generales
             document.getElementById('total-usd').textContent = formatUsd(totalUSD);
             document.getElementById('total-bs').textContent = exchangeRate > 0 ? formatBs(totalBs) : 'N/A';
             document.getElementById('total-bs').className = exchangeRate > 0 ? 'text-primary-bs ml-2 text-lg' : 'text-gray-400 ml-2 text-lg';
+
+            // 4. Calcular y mostrar saldo restante
+            const remainingBalance = initialBalanceBs - totalBs;
+            remainingBalanceEl.textContent = formatBs(remainingBalance);
+            
+            // Cambiar color basado en si el saldo es positivo o negativo
+            if (remainingBalance >= 0) {
+                remainingBalanceEl.classList.remove('text-red-500');
+                remainingBalanceEl.classList.add('text-primary-bs'); // Verde
+            } else {
+                remainingBalanceEl.classList.remove('text-primary-bs');
+                remainingBalanceEl.classList.add('text-red-500'); // Rojo
+            }
         }
 
 
-        // --- Exportación a PDF ---
+        // --- Exportación a JPG ---
 
-        /** Exporta el inventario y totales a un archivo PDF. */
-        function exportToPDF() {
+        /** Exporta el inventario y totales a un archivo JPG usando html2canvas. */
+        async function exportToJPG() {
             if (products.length === 0) {
                 showModal("Error de Exportación", "No hay productos para exportar.", true);
                 return;
             }
 
-            const jsPDF = doc;
-            const pdf = new jsPDF('p', 'mm', 'a4'); // 'p' for portrait, 'mm' units, 'a4' size
-            const date = new Date().toLocaleDateString('es-VE');
-            const time = new Date().toLocaleTimeString('es-VE');
-
-            // --- Encabezado ---
-            pdf.setFontSize(18);
-            pdf.text('Reporte de Inventario', 14, 20);
-            pdf.setFontSize(10);
-            pdf.text(`Fecha de Reporte: ${date} ${time}`, 14, 26);
-            pdf.text(`Tasa de Cambio (1 USD): ${formatBs(exchangeRate)}`, 14, 32);
+            // Deshabilitar botón para evitar clics múltiples
+            const exportBtn = document.getElementById('export-btn');
+            exportBtn.disabled = true;
+            exportBtn.innerHTML = '<svg class="w-5 h-5 mr-2 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 4.75V6.25" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17.1266 6.87347L16.0659 7.93414" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.25 12H17.75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17.1266 17.1265L16.0659 16.0659" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 17.75V19.25" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.93414 16.0659L6.87347 17.1266" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.25 12H4.75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.93414 7.93414L6.87347 6.87347" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Generando JPG';
             
-            // --- Datos de la Tabla ---
 
-            const headers = [
-                ['Producto', 'Cant.', 'Precio Unit. (USD)', 'Subtotal (USD)', 'Subtotal (Bs.)']
-            ];
+            try {
+                // Obtener el elemento que queremos capturar (solo la tabla y totales)
+                const captureArea = document.getElementById('capture-area');
+                
+                // Forzar el estilo de la tabla para que se vea bien en la imagen
+                captureArea.style.boxShadow = 'none'; // Quitar sombra para la captura
+                
+                const canvas = await html2canvas(captureArea, {
+                    scale: 2, // Aumentar escala para mejor calidad
+                    logging: false,
+                    useCORS: true,
+                    backgroundColor: '#ffffff' // Fondo blanco explícito
+                });
 
-            let totalUSD = 0;
-            let totalBs = 0;
+                // Restaurar el estilo
+                captureArea.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+                
+                const date = new Date().toLocaleDateString('es-VE').replace(/\//g, '-');
+                const filename = `Inventario_${date}.jpg`;
 
-            const bodyData = products.map(p => {
-                const subtotalUSD = p.priceUSD * p.quantity;
-                const subtotalBs = p.priceUSD * p.quantity * exchangeRate;
+                // Crear un enlace temporal para la descarga
+                const imageURL = canvas.toDataURL('image/jpeg', 0.9); // 0.9 es la calidad JPEG
+                const a = document.createElement('a');
+                a.href = imageURL;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                showModal("Exportación Exitosa", `El inventario se ha guardado como ${filename}`, false);
 
-                totalUSD += subtotalUSD;
-                totalBs += subtotalBs;
-
-                // Usar formato simple para la tabla PDF, jspdf-autotable prefiere strings sin formato de moneda.
-                return [
-                    p.name,
-                    p.quantity.toFixed(0),
-                    p.priceUSD.toFixed(2),
-                    subtotalUSD.toFixed(2),
-                    exchangeRate > 0 ? subtotalBs.toFixed(2) : 'N/A'
-                ];
-            });
-
-            pdf.autoTable({
-                head: headers,
-                body: bodyData,
-                startY: 40,
-                theme: 'striped',
-                headStyles: { fillColor: [74, 124, 89], textColor: 255 }, // Color primario (Bs.)
-                styles: { fontSize: 10, cellPadding: 2 },
-                columnStyles: {
-                    0: { cellWidth: 50 },
-                    1: { halign: 'center' },
-                    2: { halign: 'right' },
-                    3: { halign: 'right', fontStyle: 'bold' },
-                    4: { halign: 'right', fontStyle: 'bold' }
-                },
-                didParseCell: (data) => {
-                    // Añadir el símbolo de moneda en la vista final del PDF
-                    if (data.section === 'body') {
-                        if (data.column.index === 2 || data.column.index === 3) {
-                            if (data.cell.text[0] !== 'N/A') {
-                                data.cell.text[0] = '$' + data.cell.text[0];
-                            }
-                        } else if (data.column.index === 4) {
-                            if (data.cell.text[0] !== 'N/A') {
-                                data.cell.text[0] = 'Bs. ' + data.cell.text[0];
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // --- Totales Finales ---
-
-            const finalY = pdf.lastAutoTable.finalY + 10;
-            pdf.setFontSize(12);
-            pdf.setTextColor(51, 51, 51); // Negro oscuro
-            pdf.text(`Totales Generales:`, 14, finalY);
-
-            pdf.setFontSize(14);
-            pdf.setTextColor(0, 56, 101); // Azul (USD)
-            pdf.text(`Total USD: ${formatUsd(totalUSD)}`, 14, finalY + 7);
-
-            pdf.setTextColor(74, 124, 89); // Verde (Bs.)
-            pdf.text(`Total Bs.: ${exchangeRate > 0 ? formatBs(totalBs) : 'Tasa no fijada'}`, 14, finalY + 14);
-
-            // --- Footer ---
-            pdf.setFontSize(8);
-            pdf.setTextColor(150);
-            pdf.text('Generado por Inventario Offline -  ', 14, 290, { align: 'left' });
-
-
-            // Guardar el PDF
-            pdf.save(`Inventario_${date}.pdf`);
+            } catch (error) {
+                console.error("Error al generar la imagen:", error);
+                showModal("Error de Exportación", "Hubo un problema al generar la imagen JPG. Revise la consola para detalles.", true);
+            } finally {
+                 // Habilitar botón y restaurar texto
+                exportBtn.disabled = false;
+                exportBtn.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>Exportar a JPG';
+            }
         }
-
+        
         /** Inicializa la aplicación al cargar la página. */
         window.onload = function() {
-            // Reemplazar window.confirm con una implementación simple para evitar problemas de iframe
+            // Implementación de confirm() usando el modal para evitar problemas de iframe
             window.confirm = (message) => {
                 const modal = document.getElementById('message-modal');
                 const titleEl = document.getElementById('modal-title');
@@ -471,6 +504,10 @@
                 bodyEl.textContent = message;
 
                 return new Promise((resolve) => {
+                    // Limpiar y añadir botones
+                    const footer = modal.querySelector('.flex.justify-end');
+                    footer.innerHTML = '';
+
                     const confirmButton = document.createElement('button');
                     confirmButton.textContent = 'Sí, continuar';
                     confirmButton.className = 'px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 mr-2';
@@ -486,11 +523,7 @@
                         hideModal();
                         resolve(false);
                     };
-
-                    // Limpiar y añadir botones
-                    const footer = modal.querySelector('.flex.justify-end');
-                    footer.innerHTML = '';
-                    footer.appendChild(confirmButton);
+                                       footer.appendChild(confirmButton);
                     footer.appendChild(cancelButton);
 
                     modal.classList.remove('hidden');
