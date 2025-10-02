@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario Offline (Bs. / USD)</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración de Tailwind para usar el color primario y la fuente Inter -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-bs': '#4a7c59', // Tono de verde amigable (Verde)
+                        'secondary-usd': '#003865', // Azul oscuro (USD)
+                        'warning-bs': '#ffc107', // Amarillo para advertencias/saldo
+                        'edit-color': '#f97316', // Naranja para el modo edición
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- Carga de la fuente Inter de Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- Carga de las librerías jspdf y jspdf-autotable para generar el PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.js"></script>
+    <style>
+        /* Estilos personalizados para el fondo y la tabla */
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Inter', sans-serif;
+        }
+        .container-card {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* Clase para un mejor espaciado en la tabla móvil */
+        @media (max-width: 640px) {
+            #inventory-table td, #inventory-table th {
+                padding: 0.5rem 0.25rem;
+                font-size: 0.8rem;
+            }
+            .sm\:flex-col-reverse {
+                flex-direction: column-reverse; /* Reversa el orden de los botones en móvil */
+            }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 min-h-screen">
+    
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold text-primary-bs mb-1">Control de Inventario</h1>
+            <p class="text-secondary-usd text-lg font-medium">Gestión de Productos en USD y Bs.</p>
+        </header>
+
+        <!-- Sección de Tasa de Cambio y Saldo Inicial -->
+        <section id="rate-section" class="bg-white p-6 rounded-xl mb-6 container-card border border-gray-100">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-warning-bs" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 4v2m0 2v2m0 0a3 3 0 01-3 3h6a3 3 0 01-3-3m-6 3a3 3 0 00-3 3v1h18v-1a3 3 0 00-3-3m-6 0h.01"></path></svg>
+                Configuración Financiera
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                <!-- Tasa de Cambio -->
+                <div class="flex flex-col gap-2">
+                    <label for="exchange-rate" class="block text-sm font-medium text-gray-500 mb-1">Tasa de Cambio (Bs. / $1 USD)</label>
+                    <input type="number" step="0.01" min="0.01" id="exchange-rate" placeholder="Ej: 36.50"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-bs focus:border-primary-bs transition duration-150 ease-in-out">
+                    <p id="current-rate-display" class="text-sm text-gray-600 font-medium"></p>
+                </div>
+
+                <!-- Saldo Inicial en Bs. -->
+                <div class="flex flex-col gap-2">
+                    <label for="initial-balance-bs" class="block text-sm font-medium text-gray-500 mb-1">Saldo Inicial (Bolívares Bs.)</label>
+                    <input type="number" step="0.01" min="0" id="initial-balance-bs" placeholder="Ej: 1000.00"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-bs focus:border-primary-bs transition duration-150 ease-in-out">
+                    <p id="current-balance-display" class="text-sm text-gray-600 font-medium"></p>
+                </div>
+                
+                <!-- Botones de Guardar y Restaurar (En reversa en móvil) -->
+                <div class="w-full md:col-span-2 flex flex-col-reverse sm:flex-row gap-4 mt-2">
+                    <button onclick="saveFinancialConfig()"
+                            class="flex-1 px-6 py-2 bg-primary-bs text-white font-semibold rounded-lg hover:bg-primary-bs/90 transition duration-150 ease-in-out shadow-md">
+                        Guardar Tasa y Saldo
+                    </button>
+                    <!-- Botón de Restaurar Todo -->
+                    <button onclick="resetAllDataConfirmation()"
+                            class="flex-1 px-6 py-2 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 transition duration-150 ease-in-out shadow-md">
+                        <svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 19m15.356-2H15V12"></path></svg>
+                        Restaurar Todo
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección de Agregar/Editar Producto -->
+        <section id="product-section" class="bg-white p-6 rounded-xl mb-6 container-card border border-gray-100">
+            <h2 id="product-section-title" class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                <svg id="product-section-icon" class="w-6 h-6 mr-2 text-primary-bs" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Añadir Nuevo Producto
+            </h2>
+            <form id="product-form" class="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                <input type="hidden" id="editing-product-id" value="">
+                
+                <!-- Nombre del Producto (No editable en modo edición) -->
+                <div class="sm:col-span-2">
+                    <label for="product-name" class="block text-sm font-medium text-gray-500 mb-1">Nombre del Producto</label>
+                    <input type="text" id="product-name" required placeholder="Ej: Camisa Deportiva"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-bs focus:border-primary-bs"
+                           title="Este campo se desactiva al editar para asegurar que modificas el producto correcto.">
+                </div>
+                
+                <!-- Precio USD -->
+                <div>
+                    <label for="product-price-usd" class="block text-sm font-medium text-gray-500 mb-1">Precio (USD $)</label>
+                    <input type="number" step="0.01" min="0.01" id="product-price-usd" required placeholder="Ej: 15.00"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-secondary-usd focus:border-secondary-usd">
+                </div>
+                
+                <!-- Cantidad -->
+                <div>
+                    <label for="product-quantity" class="block text-sm font-medium text-gray-500 mb-1">Cantidad</label>
+                    <input type="number" step="1" min="1" id="product-quantity" required placeholder="Ej: 5"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-secondary-usd focus:border-secondary-usd">
+                </div>
+                
+                <!-- Botón de Añadir/Modificar -->
+                <button type="submit" id="submit-btn"
+                        class="w-full sm:col-span-4 lg:col-span-1 px-6 py-2 bg-secondary-usd text-white font-semibold rounded-lg hover:bg-secondary-usd/90 transition duration-150 ease-in-out shadow-md">
+                    Añadir a Inventario
+                </button>
+            </form>
+            <button id="cancel-edit-btn" onclick="cancelEditMode()"
+                    class="w-full sm:col-span-4 lg:col-span-1 px-6 py-1 mt-2 bg-gray-400 text-white font-semibold rounded-lg hover:bg-gray-500 transition duration-150 ease-in-out shadow-md hidden">
+                Cancelar Edición
+            </button>
+        </section>
+        
+        <!-- Sección de Inventario -->
+        <section id="inventory-section" class="bg-white p-6 rounded-xl container-card border border-gray-100">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-primary-bs" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                Inventario Actual
+            </h2>
+            
+            <div class="overflow-x-auto relative rounded-lg mb-4">
+                <table class="w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-white uppercase bg-primary-bs">
+                        <tr>
+                            <th scope="col" class="py-3 px-2 sm:px-4">Producto</th>
+                            <th scope="col" class="py-3 px-2 sm:px-4 text-center">Cant.</th>
+                            <th scope="col" class="py-3 px-2 sm:px-4 text-right">Precio ($)</th>
+                            <th scope="col" class="py-3 px-2 sm:px-4 text-right">Subtotal (Bs.)</th>
+                            <th scope="col" class="py-3 px-2 sm:px-4 text-center print:hidden">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-body">
+                        <!-- Filas de productos se insertarán aquí -->
+                    </tbody>
+                </table>
+                <p id="empty-message" class="text-center py-4 text-gray-500 bg-white" style="display:none;">
+                    No hay productos en el inventario.
+                </p>
+            </div>
+
+            <!-- Totales Generales y Resumen de Saldo -->
+            <div id="totals-summary" class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mt-2 p-4 rounded-xl bg-gray-100 border border-gray-200">
+                <!-- Totales y Saldos -->
+                <div class="mb-4 sm:mb-0 space-y-1">
+                    <p class="text-base font-bold text-gray-700">Total General (USD): <span id="total-usd" class="text-secondary-usd ml-2 text-lg"></span></p>
+                    <p class="text-base font-bold text-gray-700">Total General (Bs.): <span id="total-bs" class="text-primary-bs ml-2 text-lg"></span></p>
+                    <hr class="my-1 border-gray-300">
+                    <!-- Nuevos campos de Saldo Restante -->
+                    <p class="text-base font-bold text-gray-700">Saldo Inicial (Bs.): <span id="initial-balance-display-2" class="text-lg ml-2 font-extrabold text-primary-bs"></span></p>
+                    <p class="text-base font-bold text-gray-700">Saldo Restante (Bs.): <span id="remaining-balance-bs" class="text-lg ml-2 font-extrabold"></span></p>
+                    <p class="text-base font-bold text-gray-700">Saldo Restante (USD): <span id="remaining-balance-usd" class="text-lg ml-2 font-extrabold"></span></p>
+                </div>
+            </div>
+
+            <!-- Botón de Exportar a PDF -->
+            <div class="mt-4 flex justify-end">
+                <button onclick="exportToPDF()" id="export-btn" disabled
+                        class="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition duration-150 ease-in-out shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Exportar a PDF
+                </button>
+            </div>
+        </section>
+        
+        <!-- Modal de Mensajes/Confirmación -->
+        <div id="message-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center z-50">
+            <div class="bg-white p-6 rounded-lg max-w-sm w-full shadow-2xl">
+                <h3 id="modal-title" class="text-lg font-bold mb-3 text-red-600">Error</h3>
+                <p id="modal-body" class="text-gray-700 mb-4">Mensaje de error.</p>
+                <div class="flex justify-end">
+                    <!-- Botones dinámicos se insertan aquí -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Definición de variables globales y claves de almacenamiento
+        let exchangeRate = 0;
+        let initialBalanceBs = 0; // Saldo inicial en bolívares
+        let products = [];
+        const RATE_KEY = 'inventarioRate';
+        const BALANCE_KEY = 'inventarioBalanceBs';
+        const PRODUCTS_KEY = 'inventarioProducts';
+        
+        // ID del producto actualmente en edición (null si no se está editando)
+        let editingProductId = null; 
+
+        // --- Funciones de Utilidad y UI (Modales) ---
+
+        /** Muestra un modal con mensaje (isConfirm=false) o confirmación (isConfirm=true). */
+        function showModal(title, body, isError = true, isConfirm = false, onConfirm = () => {}) {
+            document.getElementById('modal-title').textContent = title;
+            // Establecer color del título
+            let titleColor = isError && !isConfirm ? 'text-red-600' : 'text-primary-bs';
+            document.getElementById('modal-title').className = `text-lg font-bold mb-3 ${titleColor}`;
+            document.getElementById('modal-body').textContent = body;
+            
+            const footer = document.getElementById('message-modal').querySelector('.flex.justify-end');
+            footer.innerHTML = ''; // Limpiar botones
+
+            if (isConfirm) {
+                const confirmButton = document.createElement('button');
+                confirmButton.textContent = 'Sí, continuar';
+                confirmButton.className = 'px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 mr-2 transition duration-150';
+                confirmButton.onclick = () => { hideModal(); onConfirm(true); };
+                
+                const cancelButton = document.createElement('button');
+                cancelButton.textContent = 'Cancelar';
+                cancelButton.className = 'px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition duration-150';
+                cancelButton.onclick = () => { hideModal(); onConfirm(false); };
+                
+                footer.appendChild(confirmButton);
+                footer.appendChild(cancelButton);
+            } else {
+                 const closeButton = document.createElement('button');
+                 closeButton.textContent = 'Cerrar';
+                 closeButton.className = 'px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition duration-150';
+                 closeButton.onclick = hideModal;
+                 footer.appendChild(closeButton);
+            }
+
+            document.getElementById('message-modal').classList.remove('hidden');
+            document.getElementById('message-modal').classList.add('flex');
+        }
+
+        /** Oculta el modal de mensaje. */
+        function hideModal() {
+            document.getElementById('message-modal').classList.add('hidden');
+            document.getElementById('message-modal').classList.remove('flex');
+        }
+
+        /** Simula window.confirm() usando el modal custom. */
+        function customConfirm(message) {
+             return new Promise((resolve) => {
+                 showModal('Confirmar Acción', message, false, true, resolve);
+             });
+         }
+
+        /** Formatea un número como Bolívares (Bs.). */
+        const formatBs = (value) => {
+            // Usar 'es-VE' para formato de Venezuela (coma como separador decimal)
+            return new Intl.NumberFormat('es-VE', { 
+                style: 'currency', 
+                currency: 'VEF', 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+            }).format(value).replace('VEF', 'Bs.');
+        };
+
+        /** Formatea un número como Dólares Americanos (USD $). */
+        const formatUsd = (value) => {
+            return new Intl.NumberFormat('en-US', { 
+                style: 'currency', 
+                currency: 'USD', 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+            }).format(value);
+        };
+        
+        // --- Manejo de la Tasa de Cambio y Saldo ---
+
+        /** Guarda la configuración financiera (tasa y saldo) en localStorage y actualiza la UI. */
+        function saveFinancialConfig() {
+            const rateInput = document.getElementById('exchange-rate');
+            const balanceInput = document.getElementById('initial-balance-bs');
+            
+            const newRate = parseFloat(rateInput.value);
+            const newBalance = parseFloat(balanceInput.value);
+
+            let rateUpdated = false;
+            let balanceUpdated = false;
+
+            // 1. Validar y guardar la tasa
+            if (rateInput.value.trim() !== "" && !isNaN(newRate) && newRate > 0) {
+                exchangeRate = newRate;
+                localStorage.setItem(RATE_KEY, newRate.toString());
+                rateUpdated = true;
+            } else if (rateInput.value.trim() !== "") {
+                showModal("Error de Tasa", "La Tasa de Cambio debe ser un valor numérico positivo.", true);
+                return;
+            }
+
+            // 2. Validar y guardar el saldo inicial
+            if (balanceInput.value.trim() !== "" && !isNaN(newBalance) && newBalance >= 0) {
+                initialBalanceBs = newBalance;
+                localStorage.setItem(BALANCE_KEY, newBalance.toString());
+                balanceUpdated = true;
+            } else if (balanceInput.value.trim() !== "") {
+                 showModal("Error de Saldo", "El Saldo Inicial debe ser un valor numérico positivo o cero.", true);
+                 return;
+            }
+            
+            if (rateUpdated || balanceUpdated) {
+                renderInventory();
+                rateInput.value = ''; 
+                balanceInput.value = ''; 
+                
+                let message = `Configuración actualizada.`;
+                if(rateUpdated) message += ` Tasa: ${formatBs(exchangeRate)}`;
+                if(balanceUpdated) message += ` Saldo Inicial: ${formatBs(initialBalanceBs)}`;
+
+                showModal("Configuración Guardada", message, false);
+            }
+        }
+
+        /** Carga la configuración financiera desde localStorage. */
+        function loadFinancialConfig() {
+            // Cargar Tasa
+            const storedRate = localStorage.getItem(RATE_KEY);
+            exchangeRate = storedRate ? parseFloat(storedRate) : 0;
+            const rateDisplay = document.getElementById('current-rate-display');
+
+            if (exchangeRate > 0) {
+                rateDisplay.textContent = `Tasa guardada: 1 USD = ${formatBs(exchangeRate)}`;
+                rateDisplay.classList.remove('text-red-500');
+                rateDisplay.classList.add('text-primary-bs');
+            } else {
+                rateDisplay.textContent = '¡Advertencia! Tasa de cambio no establecida.';
+                rateDisplay.classList.remove('text-primary-bs');
+                rateDisplay.classList.add('text-red-500');
+            }
+            
+            // Cargar Saldo Inicial
+            const storedBalance = localStorage.getItem(BALANCE_KEY);
+            initialBalanceBs = storedBalance ? parseFloat(storedBalance) : 0;
+            const balanceDisplay = document.getElementById('current-balance-display');
+            
+            balanceDisplay.textContent = `Saldo inicial guardado: ${formatBs(initialBalanceBs)}`;
+            balanceDisplay.classList.add('text-primary-bs');
+        }
+        
+        // --- Funcionalidad de Restaurar Todo ---
+
+        /** Pide confirmación antes de borrar todos los datos. */
+        function resetAllDataConfirmation() {
+            customConfirm('¿Estás seguro de que quieres RESTAURAR TODO? Esto eliminará la Tasa, el Saldo Inicial y todos los Productos del inventario de forma permanente.')
+                .then(confirmed => {
+                    if (confirmed) {
+                        resetAllData();
+                    }
+                });
+        }
+
+        /** Borra todos los datos guardados (Tasa, Saldo, Inventario). */
+        function resetAllData() {
+            localStorage.removeItem(RATE_KEY);
+            localStorage.removeItem(BALANCE_KEY);
+            localStorage.removeItem(PRODUCTS_KEY);
+            
+            // Restablecer variables globales
+            exchangeRate = 0;
+            initialBalanceBs = 0;
+            products = [];
+            editingProductId = null;
+            
+            // Re-renderizar la UI y limpiar campos de entrada
+            renderInventory();
+            document.getElementById('exchange-rate').value = '';
+            document.getElementById('initial-balance-bs').value = '';
+            cancelEditMode(); // Asegura que se sale del modo edición
+            
+            showModal("Restauración Completa", "Todos los datos (Tasa, Saldo, Inventario) han sido borrados.", false);
+        }
+  
+        // --- Manejo de Productos (Añadir/Modificar) ---
+
+        /** Guarda el array de productos en localStorage. */
+        function saveProducts() {
+            localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+        }
+
+        /** Carga el array de productos desde localStorage. */
+        function loadProducts() {
+            const storedProducts = localStorage.getItem(PRODUCTS_KEY);
+            try {
+                products = storedProducts ? JSON.parse(storedProducts) : [];
+            } catch (e) {
+                console.error("Error al parsear productos desde localStorage:", e);
+                products = [];
+            }
+        }
+        
+        /** Maneja el envío del formulario (Añadir o Modificar). */
+        document.getElementById('product-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            if (exchangeRate <= 0) {
+                showModal("Tasa Requerida", "Por favor, establezca la Tasa de Cambio primero.", true);
+                return;
+            }
+            
+            const isEditing = document.getElementById('editing-product-id').value !== "";
+            
+            // Si está editando, solo permitimos editar Precio y Cantidad, el nombre viene del producto
+            const name = isEditing ? products.find(p => p.id == document.getElementById('editing-product-id').value).name : document.getElementById('product-name').value.trim();
+            const priceUSD = parseFloat(document.getElementById('product-price-usd').value);
+            const quantity = parseInt(document.getElementById('product-quantity').value);
+
+            if (!name || isNaN(priceUSD) || priceUSD <= 0 || isNaN(quantity) || quantity <= 0) {
+                showModal("Datos Inválidos", "Por favor, complete todos los campos con valores positivos y válidos.", true);
+                return;
+            }
+
+            if (isEditing) {
+                // Modo Edición
+                const productId = parseInt(document.getElementById('editing-product-id').value);
+                const productIndex = products.findIndex(p => p.id === productId);
+
+                if (productIndex !== -1) {
+                    products[productIndex].priceUSD = priceUSD;
+                    products[productIndex].quantity = quantity;
+                    saveProducts();
+                    renderInventory();
+                    showModal("Producto Modificado", `${name} ha sido actualizado.`, false);
+                    cancelEditMode();
+                }
+            } else {
+                              // Modo Añadir Nuevo Producto
+                const newProduct = {
+                    id: Date.now(), // ID único basado en timestamp
+                    name: name,
+                    priceUSD: priceUSD,
+                    quantity: quantity
+                };
+
+                products.push(newProduct);
+                saveProducts();
+                renderInventory();
+                showModal("Producto Añadido", `${name} ha sido agregado al inventario.`, false);
+                
+                // Limpiar el formulario
+                document.getElementById('product-form').reset();
+            }
+        });
+
+        /** Inicia el modo de edición: carga los datos del producto al formulario. */
+        function enterEditMode(id) {
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+            
+            customConfirm(`¿Desea editar el producto: ${product.name}?`)
+                .then(confirmed => {
+                    if (confirmed) {
+                        editingProductId = id;
+                        
+                        // 1. Cargar datos en los campos
+                        document.getElementById('editing-product-id').value = id;
+                        document.getElementById('product-name').value = product.name;
+                        document.getElementById('product-price-usd').value = product.priceUSD;
+                        document.getElementById('product-quantity').value = product.quantity;
+                        
+                        // 2. Cambiar la UI a modo edición
+                        document.getElementById('product-name').disabled = true; // Desactivar nombre
+                        document.getElementById('product-name').classList.add('bg-gray-100');
+                        
+                        document.getElementById('submit-btn').textContent = "MODIFICAR PRODUCTO";
+                        document.getElementById('submit-btn').classList.remove('bg-secondary-usd');
+                        document.getElementById('submit-btn').classList.add('bg-edit-color'); // Naranja
+                        
+                        document.getElementById('product-section-title').textContent = "Editar Producto: " + product.name;
+                        document.getElementById('product-section-icon').classList.remove('text-primary-bs');
+                        document.getElementById('product-section-icon').classList.add('text-edit-color');
+                        
+                        document.getElementById('cancel-edit-btn').classList.remove('hidden');
+                    }
+                });
+        }
+          
+        /** Cancela el modo de edición y restablece la UI y el formulario. */
+        function cancelEditMode() {
+            editingProductId = null;
+            
+            // 1. Limpiar campos y ID de edición
+            document.getElementById('product-form').reset();
+            document.getElementById('editing-product-id').value = "";
+
+            // 2. Restablecer la UI a modo "Añadir"
+            document.getElementById('product-name').disabled = false;
+            document.getElementById('product-name').classList.remove('bg-gray-100');
+            
+            document.getElementById('submit-btn').textContent = "Añadir a Inventario";
+            document.getElementById('submit-btn').classList.remove('bg-edit-color'); // Naranja
+            document.getElementById('submit-btn').classList.add('bg-secondary-usd'); // Azul
+            
+            document.getElementById('product-section-title').textContent = "Añadir Nuevo Producto";
+            document.getElementById('product-section-icon').classList.add('text-primary-bs');
+            document.getElementById('product-section-icon').classList.remove('text-edit-color');
+            
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+        }
+
+
+        /** Elimina un producto por su ID. */
+        function deleteProduct(id) {
+            customConfirm(`¿Está seguro de que desea eliminar este producto del inventario?`)
+                .then(confirmed => {
+                    if (confirmed) {
+                        products = products.filter(p => p.id !== id);
+                        saveProducts();
+                        renderInventory();
+                        cancelEditMode(); // Por si se estaba editando el producto borrado
+                        showModal("Producto Eliminado", "El producto fue eliminado exitosamente del inventario.", false);
+                    }
+                });
+        }
+        
+        // --- Renderizado y Cálculos ---
+
+        /** Renderiza la tabla de inventario y calcula los totales. */
+        function renderInventory() {
+            loadFinancialConfig(); 
+            loadProducts(); 
+            
+            const body = document.getElementById('inventory-body');
+            const emptyMessage = document.getElementById('empty-message');
+            const exportBtn = document.getElementById('export-btn');
+            const remainingBsEl = document.getElementById('remaining-balance-bs');
+            const remainingUsdEl = document.getElementById('remaining-balance-usd');
+            const initialBalanceDisplay2 = document.getElementById('initial-balance-display-2'); // Nuevo elemento para mostrar el saldo inicial
+
+            body.innerHTML = '';
+            let totalUSD = 0;
+            let totalBs = 0;
+                      
+            // Mostrar saldo inicial en el resumen
+            initialBalanceDisplay2.textContent = formatBs(initialBalanceBs);
+
+            // 1. Mostrar estado de la tabla
+            const inventoryExists = products.length > 0;
+            emptyMessage.style.display = inventoryExists ? 'none' : 'block';
+            exportBtn.disabled = !inventoryExists;
+
+
+            // 2. Renderizar filas y calcular totales
+            products.forEach(product => {
+                const subtotalUSD = product.priceUSD * product.quantity;
+                const subtotalBs = exchangeRate > 0 ? subtotalUSD * exchangeRate : 0; 
+
+                totalUSD += subtotalUSD;
+                totalBs += subtotalBs;
+
+                const row = body.insertRow();
+                row.className = 'bg-white border-b hover:bg-gray-50';
+
+                // Nombre
+                row.insertCell().textContent = product.name;
+
+                // Cantidad
+                row.insertCell().textContent = product.quantity;
+                row.cells[1].className = 'text-center';
+
+                // Precio ($) - Muestra el precio unitario
+                row.insertCell().textContent = formatUsd(product.priceUSD);
+                row.cells[2].className = 'text-right font-medium text-secondary-usd';
+
+                // Subtotal (Bs.)
+                const subtotalCell = row.insertCell();
+                if (exchangeRate > 0) {
+                    subtotalCell.textContent = formatBs(subtotalBs);
+                    subtotalCell.className = 'text-right font-bold text-primary-bs';
+                } else {
+                    subtotalCell.textContent = 'Tasa N/A';
+                    subtotalCell.className = 'text-right text-gray-400';
+                }
+                              
+                // Acciones (Editar y Eliminar)
+                const actionCell = row.insertCell();
+                actionCell.className = 'text-center print:hidden flex justify-center items-center space-x-2 h-full py-2';
+                
+                // Botón de Editar (Lápiz)
+                const editBtn = document.createElement('button');
+                editBtn.innerHTML = `<svg class="w-5 h-5 text-blue-500 hover:text-blue-700 transition duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>`;
+                editBtn.title = 'Editar producto';
+                editBtn.onclick = () => enterEditMode(product.id);
+                actionCell.appendChild(editBtn);
+
+                // Botón de Eliminar (Bote de basura)
+                const deleteBtn = document.createElement('button');
+                deleteBtn.innerHTML = `<svg class="w-5 h-5 text-red-500 hover:text-red-700 transition duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                deleteBtn.title = 'Eliminar producto';
+                deleteBtn.onclick = () => deleteProduct(product.id);
+                actionCell.appendChild(deleteBtn);
+            });
+
+            // 3. Actualizar totales generales
+            document.getElementById('total-usd').textContent = formatUsd(totalUSD);
+            document.getElementById('total-bs').textContent = exchangeRate > 0 ? formatBs(totalBs) : 'N/A';
+            document.getElementById('total-bs').className = exchangeRate > 0 ? 'text-primary-bs ml-2 text-lg' : 'text-gray-400 ml-2 text-lg';
+
+            // 4. Calcular y mostrar saldos restantes (AQUÍ ESTÁ LA CORRECCIÓN CLAVE)
+            const remainingBalanceBs = initialBalanceBs - totalBs;
+            // Evitar división por cero si la tasa no está fijada
+            const remainingBalanceUsd = exchangeRate > 0 ? remainingBalanceBs / exchangeRate : 0;
+          
+            // Saldo Bs
+            remainingBsEl.textContent = formatBs(remainingBalanceBs);
+            remainingBsEl.classList.remove('text-red-500', 'text-primary-bs');
+            remainingBsEl.classList.add(remainingBalanceBs >= 0 ? 'text-primary-bs' : 'text-red-500');
+
+            // Saldo USD
+            remainingUsdEl.textContent = formatUsd(remainingBalanceUsd);
+            remainingUsdEl.classList.remove('text-red-500', 'text-secondary-usd');
+            remainingUsdEl.classList.add(remainingBalanceUsd >= 0 ? 'text-secondary-usd' : 'text-red-500');
+        }
+
+
+        // --- Exportación a PDF ---
+
+        /** Exporta la información a un PDF usando jspdf y autotable. */
+        function exportToPDF() {
+            if (products.length === 0) {
+                showModal("Error de Exportación", "No hay productos para exportar.", true);
+                return;
+            }
+            if (exchangeRate <= 0) {
+                showModal("Error de Tasa", "Debe establecer una tasa de cambio válida para exportar subtotales en Bs. al PDF.", true);
+                return;
+            }
+
+            // Crear instancia de jsPDF
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // --- Título y Configuración ---
+            doc.setFontSize(18);
+            doc.text("Reporte de Inventario", 14, 20);
+
+            doc.setFontSize(10);
+            const date = new Date().toLocaleDateString('es-VE', { year: 'numeric', month: 'long', day: 'numeric' });
+            doc.text(`Fecha: ${date}`, 14, 26);
+            doc.text(`Tasa de Cambio (Bs./$): ${formatBs(exchangeRate)}`, 14, 32);
+              
+            // --- Preparar datos para la tabla ---
+            const headers = [
+                { title: "Producto", dataKey: "name" },
+                { title: "Cantidad", dataKey: "qty" },
+                { title: "Precio Unit. (USD)", dataKey: "priceUSD" },
+                { title: "Subtotal (Bs.)", dataKey: "subtotalBs" }
+            ];
+
+            const totalUSD = products.reduce((sum, p) => sum + (p.priceUSD * p.quantity), 0);
+            const totalBs = totalUSD * exchangeRate;
+            const remainingBalanceBs = initialBalanceBs - totalBs;
+            
+            const bodyData = products.map(p => {
+                const subtotalUSD = p.priceUSD * p.quantity;
+                const subtotalBs = subtotalUSD * exchangeRate;
+                
+                return {
+                    name: p.name,
+                    qty: p.quantity.toString(),
+                    priceUSD: formatUsd(p.priceUSD),
+                    subtotalBs: formatBs(subtotalBs)
+                };
+            });
+
+            // --- Generar la tabla ---
+            doc.autoTable(headers, bodyData, {
+                startY: 40,
+                theme: 'striped',
+                headStyles: { fillColor: [74, 124, 89] }, // primary-bs color
+                styles: { fontSize: 8, cellPadding: 2 },
+                columnStyles: {
+                    qty: { halign: 'center' },
+                    priceUSD: { halign: 'right' },
+                    subtotalBs: { halign: 'right', fontStyle: 'bold' }
+                }
+            });
+
+            // Posicionar el resumen debajo de la tabla
+            const finalY = doc.autoTable.previous.finalY + 10;
+            
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text("RESUMEN FINANCIERO:", 14, finalY);
+              
+            // Resumen Financiero
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Saldo Inicial (Bs.): ${formatBs(initialBalanceBs)}`, 14, finalY + 8); // Se añade Saldo Inicial
+            doc.text(`Total Inventario (USD): ${formatUsd(totalUSD)}`, 14, finalY + 14);
+            doc.text(`Total Inventario (Bs.): ${formatBs(totalBs)}`, 14, finalY + 20);
+            
+            // Saldos Restantes (en negrita)
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(remainingBalanceBs >= 0 ? 0 : 255, remainingBalanceBs >= 0 ? 0 : 0, remainingBalanceBs >= 0 ? 0 : 0); // Verde o Rojo
+            doc.text(`Saldo Restante (Bs.): ${formatBs(remainingBalanceBs)}`, 14, finalY + 28);
+            
+            // Recalcular saldo USD para la impresión
+            const remainingBalanceUsd = exchangeRate > 0 ? remainingBalanceBs / exchangeRate : 0;
+
+            doc.setTextColor(remainingBalanceUsd >= 0 ? 0 : 255, remainingBalanceUsd >= 0 ? 0 : 0, remainingBalanceUsd >= 0 ? 0 : 0); // Azul o Rojo
+            doc.text(`Saldo Restante (USD): ${formatUsd(remainingBalanceUsd)}`, 14, finalY + 34);
+
+            // Restablecer color de texto para el resto del documento
+            doc.setTextColor(0, 0, 0); 
+            
+            // Guardar el PDF
+            doc.save(`Inventario_${date.replace(/ /g, '_')}.pdf`);
+        }
+
+
+        /** Inicializa la aplicación al cargar la página. */
+        window.onload = function() {
+            // Reemplazar window.confirm con una implementación custom para evitar problemas de iframe
+             window.confirm = (message) => {
+                const modal = document.getElementById('message-modal');
+                const titleEl = document.getElementById('modal-title');
+                const bodyEl = document.getElementById('modal-body');
+
+                titleEl.textContent = 'Confirmar Acción';
+                titleEl.className = 'text-lg font-bold mb-3 text-primary-bs';
+                bodyEl.textContent = message;
+
+                return new Promise((resolve) => {
+                    const confirmButton = document.createElement('button');
+                    confirmButton.textContent = 'Sí, continuar';
+                    confirmButton.className = 'px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 mr-2 transition duration-150';
+                    confirmButton.onclick = () => {
+                        hideModal();
+                        resolve(true);
+                    };
+                                      
+                    const cancelButton = document.createElement('button');
+                    cancelButton.textContent = 'Cancelar';
+                    cancelButton.className = 'px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition duration-150';
+                    cancelButton.onclick = () => {
+                        hideModal();
+                        resolve(false);
+                    };
+
+                    // Limpiar y añadir botones
+                    const footer = modal.querySelector('.flex.justify-end');
+                    footer.innerHTML = '';
+                    footer.appendChild(confirmButton);
+                    footer.appendChild(cancelButton);
+
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                });
+            };
+            
+            renderInventory(); // Inicializa la vista con los datos guardados
+        };
+    </script>
+</body>
+</html>
