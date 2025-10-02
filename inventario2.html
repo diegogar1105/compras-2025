@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Precios y Productos</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librerías para Generación de PDF (jsPDF y AutoTable) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6', // blue-500
+                        secondary: '#10b981', // emerald-500
+                        background: '#f3f4f6', // gray-100
+                        card: '#ffffff',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+        }
+        .input-style {
+            padding: 10px;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 8px;
+            font-size: 16px;
+            width: 100%;
+            transition: all 0.2s;
+        }
+        .input-style:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+            outline: none;
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary:hover {
+            background-color: #2563eb; /* blue-600 */
+        }
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+        .btn-delete {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .btn-delete:hover {
+            background-color: #dc2626; /* red-600 */
+        }
+        .btn-secondary {
+            background-color: #10b981; /* emerald-500 */
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-secondary:hover {
+            background-color: #059669; /* emerald-600 */
+        }
+        .btn-secondary:active {
+            transform: scale(0.98);
+        }
+        /* Estilos de tabla adaptados a móvil */
+        @media (max-width: 640px) {
+            .table-responsive th, .table-responsive td {
+                display: block;
+                width: 100%;
+                text-align: left;
+                padding: 8px 10px;
+            }
+            .table-responsive th {
+                background-color: #e5e7eb; /* gray-200 */
+                font-weight: 700;
+                color: #1f2937; /* gray-800 */
+                border-bottom: 1px solid #d1d5db;
+            }
+            .table-responsive tr {
+                margin-bottom: 10px;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                display: block;
+                background-color: white;
+            }
+            .table-responsive tbody {
+                display: block;
+            }
+            .table-responsive thead {
+                display: none; /* Ocultar el encabezado de la tabla en móvil */
+            }
+            /* Mostrar encabezados como etiquetas en la fila */
+            .table-responsive td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                display: inline-block;
+                width: 120px; /* Ancho fijo para la etiqueta */
+                color: #4b5563; /* gray-600 */
+            }
+        }
+    </style>
+    <!-- Importaciones de Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, orderBy, deleteDoc, runTransaction, serverTimestamp, setLogLevel, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Configuración de Firebase - OBLIGATORIO usar variables globales
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth, userId = null;
+        let isAuthReady = false; 
+        
+        // Exponer funciones necesarias globalmente
+        window.initApp = initApp;
+        window.saveRate = saveRate;
+        window.addProduct = addProduct;
+        window.deleteProduct = deleteProduct;
+        window.updateTotal = updateTotal;
+        window.exportInventory = exportInventory; // Función de exportación a PDF
+        
+        // Referencias del DOM
+        const rateInput = document.getElementById('exchangeRateInput');
+        const rateDisplay = document.getElementById('currentRateDisplay');
+        const productsList = document.getElementById('productsList');
+        const totalBsDisplay = document.getElementById('totalBs');
+        const totalUsdDisplay = document.getElementById('totalUsd');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const authStatus = document.getElementById('authStatus');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        // Referencias de Input del producto
+        const nameInput = document.getElementById('productName');
+        const priceInput = document.getElementById('priceUsd');
+        const qtyInput = document.getElementById('quantity');
+
+        let currentExchangeRate = 0.0;
+        let productsData = [];
+
+        // --- Rutas de Firestore ---
+        const getRateDocRef = (uid) => doc(db, 'artifacts', appId, 'users', uid, 'settings', 'exchange_rate');
+        const getProductsCollectionRef = (uid) => collection(db, 'artifacts', appId, 'users', uid, 'products');
+
+        async function initApp() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    throw new Error("La configuración de Firebase no está disponible.");
+                }
+
+                // Inicializar Firebase
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // 1. Configurar Persistencia Offline de Firestore
+                try {
+                    await enableIndexedDbPersistence(db);
+                    connectionStatus.textContent = 'Modo Offline: Activado';
+                } catch (err) {
+                    if (err.code === 'failed-precondition') {
+                        connectionStatus.textContent = 'Modo Offline: Compartido (solo una pestaña puede escribir)';
+                    } else if (err.code === 'unimplemented') {
+                        connectionStatus.textContent = 'Modo Offline: No Soportado';
+                    } else {
+                        console.error("Error al habilitar persistencia:", err);
+                        connectionStatus.textContent = 'Modo Offline: Error';
+                    }
+                }
+                
+                // 2. Manejo de autenticación
+                await setPersistence(auth, browserLocalPersistence);
+
+                authStatus.textContent = 'Inicializando autenticación...';
+                
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = `ID de Usuario: ${userId}`;
+                        authStatus.textContent = 'Conectado';
+                        isAuthReady = true;
+                        
+                        // 3. Iniciar listeners después de la autenticación
+                        listenToExchangeRate(userId);
+                        listenToProducts(userId);
+                    } else {
+                        userId = null;
+                        userIdDisplay.textContent = 'ID de Usuario: Desconocido';
+                        authStatus.textContent = 'Desconectado. Inicie sesión.';
+                        isAuthReady = true; 
+                        productsList.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">Inicia sesión para ver y guardar tus productos.</td></tr>`;
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error al inicializar la aplicación o Firebase:", error);
+                authStatus.textContent = 'Error crítico de conexión.';
+                alertModal("Error de Conexión", "No se pudo conectar a la base de datos. Revisa la consola para más detalles.");
+            }
+        }
+
+        // --- FUNCIONES DE CÁLCULO Y ACTUALIZACIÓN DE UI ---
+
+        function formatCurrency(value, currency = 'Bs') {
+            const options = {
+                style: 'currency',
+                currency: currency === 'Bs' ? 'VEF' : 'USD', 
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            };
+            const formatter = new Intl.NumberFormat('es-VE', options);
+            const formatted = formatter.format(value);
+            if (currency === 'Bs') {
+                // Reemplazar el símbolo VEF por Bs.S y limpiar espacios
+                return formatted.replace('VEF', 'Bs.S').replace(/\s/g, ''); 
+            }
+            return formatted;
+        }
+
+        function calculateBs(usdPrice) {
+            const rate = parseFloat(currentExchangeRate);
+            if (isNaN(rate) || rate <= 0) return 0;
+            return usdPrice * rate;
+        }
+
+        function updateTotal() {
+            let totalUsd = 0;
+            let totalBs = 0;
+
+            productsData.forEach(product => {
+                totalUsd += product.priceUsd * product.quantity;
+                totalBs += product.subtotalBs; 
+            });
+
+            totalUsdDisplay.textContent = formatCurrency(totalUsd, 'USD');
+            totalBsDisplay.textContent = formatCurrency(totalBs, 'Bs');
+            // Actualizar el footer móvil
+            document.getElementById('totalUsd_mobile').textContent = formatCurrency(totalUsd, 'USD');
+            document.getElementById('totalBs_mobile').textContent = formatCurrency(totalBs, 'Bs');
+        }
+
+        function renderProducts(products) {
+            productsData = products;
+            productsList.innerHTML = ''; 
+
+            if (products.length === 0) {
+                productsList.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">No hay productos añadidos. ¡Añade el primero!</td></tr>`;
+                updateTotal();
+                return;
+            }
+
+            products.forEach(product => {
+                const subtotalUsd = product.priceUsd * product.quantity;
+                const subtotalBs = calculateBs(subtotalUsd);
+
+                product.subtotalBs = subtotalBs; 
+                product.subtotalUsd = subtotalUsd; 
+
+                const row = document.createElement('tr');
+                row.className = 'border-b last:border-b-0 hover:bg-gray-50 transition sm:block sm:mb-2';
+                
+                row.innerHTML = `
+                    <td data-label="Producto" class="p-3 text-sm font-medium text-gray-900 sm:font-normal sm:border-b sm:border-gray-200">${product.name}</td>
+                    <td data-label="Precio (USD)" class="p-3 text-sm text-gray-700">${formatCurrency(product.priceUsd, 'USD')}</td>
+                    <td data-label="Cantidad" class="p-3 text-sm text-gray-700">${product.quantity}</td>
+                    <td data-label="Subtotal (Bs)" class="p-3 text-sm font-semibold text-secondary">${formatCurrency(subtotalBs, 'Bs')}</td>
+                    <td data-label="Acciones" class="p-3 text-sm text-right sm:text-left">
+                        <button class="btn-delete" onclick="window.deleteProduct('${product.id}')">Eliminar</button>
+                    </td>
+                `;
+                productsList.appendChild(row);
+            });
+
+            updateTotal();
+        }
+
+        // --- FUNCIONES DE FIREBASE (CRUD) ---
+
+        function listenToExchangeRate(uid) {
+            if (!db) return;
+            const rateRef = getRateDocRef(uid);
+            
+            onSnapshot(rateRef, (docSnap) => {
+                let rate = 0.0;
+                // Verificar si estamos online/offline
+                if (!docSnap.metadata.fromCache || docSnap.metadata.hasPendingWrites) {
+                    connectionStatus.textContent = 'Sincronizado (Online)';
+                    connectionStatus.classList.remove('text-orange-500');
+                    connectionStatus.classList.add('text-secondary');
+                } else {
+                    connectionStatus.textContent = 'Sin conexión (Modo Offline)';
+                    connectionStatus.classList.remove('text-secondary');
+                    connectionStatus.classList.add('text-orange-500');
+                }
+
+                if (docSnap.exists() && docSnap.data().rate) {
+                    rate = parseFloat(docSnap.data().rate);
+                } else {
+                    rate = 36.5; 
+                    saveRate(rate);
+                }
+                
+                currentExchangeRate = rate;
+                rateInput.value = rate.toFixed(2);
+                rateDisplay.textContent = formatCurrency(rate, 'Bs') + " por $1 USD";
+                
+                renderProducts(productsData); 
+            }, (error) => {
+                console.error("Error al escuchar la tasa de cambio:", error);
+                rateDisplay.textContent = "Error al cargar la tasa";
+            });
+        }
+
+        async function saveRate(rateValue = null) {
+            if (!isAuthReady || !userId || !db) {
+                alertModal("Error de Conexión", "La aplicación aún no ha terminado de conectar. Por favor, espera un momento.");
+                return;
+            }
+            
+            let rateToSave;
+            if (rateValue !== null) {
+                rateToSave = parseFloat(rateValue);
+            } else {
+                rateToSave = parseFloat(rateInput.value);
+            }
+
+            if (isNaN(rateToSave) || rateToSave <= 0) {
+                alertModal("Error", "Por favor, introduce una tasa de cambio válida (mayor que cero).");
+                return;
+            }
+
+            const rateRef = getRateDocRef(userId);
+            try {
+                await setDoc(rateRef, { 
+                    rate: rateToSave, 
+                    lastUpdated: serverTimestamp() 
+                }, { merge: true });
+            } catch (e) {
+                console.error("Error al guardar la tasa: ", e);
+                alertModal("Error de Guardado", "No se pudo guardar la tasa. Si estás offline, se intentará guardar cuando te conectes.");
+            }
+        }
+
+        function listenToProducts(uid) {
+            if (!db) return;
+            const productsColRef = getProductsCollectionRef(uid);
+            const q = query(productsColRef, orderBy('createdAt', 'desc'));
+
+            onSnapshot(q, (snapshot) => {
+                const products = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    products.push({
+                        id: doc.id,
+                        name: data.name,
+                        priceUsd: data.priceUsd,
+                        quantity: data.quantity,
+                        createdAt: data.createdAt ? data.createdAt.toDate() : new Date()
+                    });
+                });
+                renderProducts(products);
+            }, (error) => {
+                console.error("Error al escuchar productos:", error);
+                productsList.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Error al cargar la lista de productos.</td></tr>`;
+            });
+        }
+
+        async function addProduct() {
+            if (!isAuthReady || !userId || !db) {
+                alertModal("Error de Conexión", "La aplicación aún no ha terminado de conectar. Por favor, espera un momento y vuelve a intentarlo.");
+                return;
+            }
+            
+            const name = nameInput.value.trim();
+            const priceUsd = parseFloat(priceInput.value);
+            const quantity = parseInt(qtyInput.value, 10);
+
+            if (!name || isNaN(priceUsd) || priceUsd <= 0 || isNaN(quantity) || quantity <= 0) {
+                alertModal("Error de Entrada", "Por favor, completa todos los campos con valores válidos (Nombre, Precio > 0, Cantidad > 0).");
+                return;
+            }
+
+            const productsColRef = getProductsCollectionRef(userId);
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const newDocRef = doc(productsColRef); 
+                    transaction.set(newDocRef, {
+                        name: name,
+                        priceUsd: priceUsd,
+                        quantity: quantity,
+                        createdAt: serverTimestamp()
+                    });
+                });
+                
+                nameInput.value = '';
+                priceInput.value = '';
+                qtyInput.value = '1'; 
+
+            } catch (e) {
+                console.error("Error al añadir el producto: ", e);
+                alertModal("Error de Guardado", "No se pudo añadir el producto. Si estás offline, se pondrá en cola para sincronizar.");
+            }
+        }
+
+        async function deleteProduct(productId) {
+            if (!isAuthReady || !userId || !db) {
+                alertModal("Error de Conexión", "La aplicación aún no está lista.");
+                return;
+            }
+            
+            const productRef = doc(getProductsCollectionRef(userId), productId);
+
+            try {
+                await deleteDoc(productRef);
+            } catch (e) {
+                console.error("Error al eliminar el producto: ", e);
+                alertModal("Error de Eliminación", "No se pudo eliminar el producto. Si estás offline, se pondrá en cola para sincronizar.");
+            }
+        }
+
+        // --- FUNCIÓN PARA EXPORTAR INVENTARIO (PDF) ---
+        function exportInventory() {
+            if (productsData.length === 0) {
+                alertModal("Exportación", "No hay productos en el inventario para exportar.");
+                return;
+            }
+            
+            // 1. Inicializar jsPDF
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4'); // 'p' = portrait, 'mm' = milímetros, 'a4' = tamaño
+            
+            // 2. Títulos y Metadatos
+            const date = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+            const rate = currentExchangeRate.toFixed(2);
+            let y = 15; // Posición inicial en Y
+
+            doc.setFontSize(18);
+            doc.text('Reporte de Inventario y Precios', 15, y);
+            y += 8;
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Fecha del Reporte: ${date}`, 15, y);
+            y += 5;
+            doc.text(`Tasa de Cambio Utilizada (Referencial): 1 USD = ${formatCurrency(rate, 'Bs')}`, 15, y);
+            y += 10;
+            
+            // 3. Preparar los datos para AutoTable
+            const head = [
+                ['Producto', 'Cantidad', 'Precio USD', 'Subtotal USD', 'Subtotal Bs']
+            ];
+
+            let totalUsd = 0;
+            let totalBs = 0;
+            
+            const body = productsData.map(product => {
+                const subtotalUsd = product.priceUsd * product.quantity;
+                const subtotalBs = product.subtotalBs;
+
+                totalUsd += subtotalUsd;
+                totalBs += subtotalBs;
+
+                return [
+                    product.name,
+                    product.quantity,
+                    formatCurrency(product.priceUsd, 'USD'),
+                    formatCurrency(subtotalUsd, 'USD'),
+                    formatCurrency(subtotalBs, 'Bs')
+                ];
+            });
+
+            // 4. Generar la Tabla
+            doc.autoTable({startY: y,
+                head: head,
+                body: body,
+                styles: { fontSize: 10, cellPadding: 3 },
+                headStyles: { fillColor: [59, 130, 246] }, // Tailwind blue-500
+                margin: { left: 15, right: 15 },
+                theme: 'striped',
+                columnStyles: {
+                    // Alinear números a la derecha
+                    2: { halign: 'right' }, 
+                    3: { halign: 'right' },
+                    4: { halign: 'right', fontStyle: 'bold' } 
+                },
+                didDrawPage: function (data) {
+                    // Footer: Número de página
+                    doc.setFontSize(10);
+                    doc.text(
+                        'Página ' + data.pageNumber,
+                        data.settings.margin.left,
+                        doc.internal.pageSize.height - 10
+                    );
+                }
+            });
+
+            // Obtener la posición Y donde termina la tabla
+            y = doc.autoTable.previous.finalY + 5; 
+
+            // 5. Agregar Totales
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text(`TOTALES:`, 140, y); 
+            doc.setFont(undefined, 'normal');
+
+            y += 5;
+            doc.text(`Total en Dólares (USD): ${formatCurrency(totalUsd, 'USD')}`, 140, y, { align: 'right' });
+            y += 5;
+            doc.text(`Total en Bolívares (Bs): ${formatCurrency(totalBs, 'Bs')}`, 140, y, { align: 'right' });
+
+
+            // 6. Descargar el archivo
+            const filenameDate = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            doc.save(`Inventario_${filenameDate}.pdf`);
+            
+            alertModal("Exportación Exitosa", `El archivo Inventario_${filenameDate}.pdf ha sido generado. Revisa tu carpeta de descargas.`);
+        }
+        
+        // --- FUNCIÓN DE MODAL DE ALERTA (Reemplazo de alert()) ---
+        function alertModal(title, message) {
+            const modal = document.getElementById('customAlertModal');
+            document.getElementById('alertTitle').textContent = title;
+            document.getElementById('alertMessage').textContent = message;
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; 
+        }
+  
+        document.getElementById('alertCloseBtn').addEventListener('click', () => {
+            const modal = document.getElementById('customAlertModal');
+            modal.classList.add('hidden');
+            document.body.style.overflow = ''; 
+        });
+        
+        // Inicializar la aplicación al cargar la ventana
+        window.onload = initApp;
+
+    </script>
+</head>
+<body class="bg-background min-h-screen p-4 sm:p-8">
+
+    <!-- Modal de Alerta Personalizado -->
+    <div id="customAlertModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-card rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 id="alertTitle" class="text-lg font-bold text-red-600 mb-2"></h3>
+            <p id="alertMessage" class="text-gray-700 mb-4"></p>
+            <button id="alertCloseBtn" class="w-full btn-primary bg-red-500 hover:bg-red-600">Entendido</button>
+        </div>
+    </div>
+    
+    <!-- Contenedor Principal Adaptable -->
+    <main class="max-w-4xl mx-auto space-y-8">
+        
+        <!-- Header y Tasa de Cambio -->
+        <header class="bg-card p-6 rounded-xl shadow-lg">
+            <h1 class="text-3xl font-extrabold text-gray-800 mb-2">Gestor de Precios y Productos</h1>
+            <div class="flex flex-col sm:flex-row justify-between text-sm mb-4 space-y-1 sm:space-y-0">
+                <p class="text-gray-500" id="authStatus">Desconectado</p>
+                <!-- Indicador de conexión -->
+                <p id="connectionStatus" class="font-medium text-secondary">Inicializando modo Offline...</p>
+            </div>
+
+            <div class="flex flex-col sm:flex-row sm:items-end gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="flex-grow">
+                    <label for="exchangeRateInput" class="block text-sm font-medium text-gray-700 mb-1">
+                        Tasa de Cambio (Bs. por $1 USD)
+                                          </label>
+                    <input type="number" id="exchangeRateInput" step="0.01" value="0.00" class="input-style" placeholder="Ej: 36.50">
+                </div>
+                <button onclick="saveRate()" class="btn-primary w-full sm:w-auto flex-shrink-0">
+                    Guardar Tasa
+                </button>
+            </div>
+            
+            <div class="mt-4 text-center p-3 bg-secondary bg-opacity-10 rounded-lg">
+                <p class="text-sm text-secondary font-medium">Tasa Configurada:</p>
+                <p id="currentRateDisplay" class="text-xl font-bold text-secondary">Bs. 0.00 por $1 USD</p>
+            </div>
+        </header>
+        
+        <!-- Formulario para Añadir Producto -->
+        <section class="bg-card p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Añadir Nuevo Producto</h2>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div class="sm:col-span-1">
+                    <label for="productName" class="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto</label>
+                    <input type="text" id="productName" class="input-style" placeholder="Ej: Laptop Gamer">
+                </div>
+                
+                <div>
+                    <label for="priceUsd" class="block text-sm font-medium text-gray-700 mb-1">Precio en USD ($)</label>
+                    <input type="number" id="priceUsd" step="0.01" class="input-style" placeholder="Ej: 850.00">
+                </div>
+                
+                <div>
+                    <label for="quantity" class="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
+                    <input type="number" id="quantity" step="1" class="input-style" value="1" min="1">
+                </div>
+                
+                <div class="flex items-end pt-2 sm:pt-0">
+                    <button onclick="addProduct()" class="btn-primary w-full h-10">
+                        Añadir
+                    </button>
+                </div>
+            </div>
+        </section>
+      
+        <!-- Listado de Productos -->
+        <section class="bg-card p-4 rounded-xl shadow-lg overflow-x-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold text-gray-800">Inventario Actual</h2>
+                <button onclick="exportInventory()" class="btn-secondary text-sm flex items-center">
+                    <!-- Icono de PDF SVG -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 2a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 000 2h6a1 1 0 100-2H7zm0 3a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
+                    </svg>
+                    Exportar (PDF)
+                </button>
+            </div>
+            
+            <table class="min-w-full divide-y divide-gray-200 table-responsive">
+                <thead class="bg-gray-50 hidden sm:table-header-group">
+                    <tr>
+                        <th scope="col" class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/4">Producto</th>
+                        <th scope="col" class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/5">Precio (USD)</th>
+                        <th scope="col" class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/6">Cantidad</th>
+                        <th scope="col" class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/4">Subtotal (Bs)</th>
+                        <th scope="col" class="px-3 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider w-1/6">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="productsList" class="bg-card divide-y divide-gray-200 sm:divide-y-0">
+                    <!-- Los productos se insertarán aquí por JavaScript -->
+                    <tr>
+                        <td colspan="5" class="p-4 text-center text-gray-500">Cargando productos...</td>
+                    </tr>
+                </tbody>
+                <!-- Fila de Totales para Desktop/Tablet -->
+                <tfoot class="bg-gray-100 hidden sm:table-footer-group">
+                    <tr>
+                        <td colspan="3" class="px-3 py-3 text-right text-lg font-bold text-gray-800">Total General:</td>
+                        <td class="px-3 py-3 text-left text-lg font-bold text-secondary" id="totalBs">Bs. 0.00</td>
+                        <td class="px-3 py-3 text-right text-lg font-bold text-gray-700" id="totalUsd">$0.00</td>
+                    </tr>
+                </tfoot>
+            </table>
+                      
+            <!-- Bloque de Totales para Móvil -->
+            <div class="sm:hidden mt-4 pt-4 border-t border-gray-200 space-y-2">
+                <div class="flex justify-between items-center text-lg font-semibold text-gray-800">
+                    <span>Total General (USD):</span>
+                    <span id="totalUsd_mobile" class="text-gray-700 font-bold">$0.00</span>
+                </div>
+                <div class="flex justify-between items-center text-xl font-bold text-secondary">
+                    <span>Total General (Bs):</span>
+                    <span id="totalBs_mobile">Bs. 0.00</span>
+                </div>
+            </div>
+            
+        </section>
+        
+        <footer class="text-center text-xs text-gray-400 p-4">
+            <p>Datos almacenados de forma privada en Firestore.</p>
+            <p id="userIdDisplay"></p>
+        </footer>
+    </main>
+</body>
+</html>
