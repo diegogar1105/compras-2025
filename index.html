@@ -3,694 +3,503 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conversor de Precios y Productos</title>
+    <title>Inventario Offline (Bs. / USD)</title>
     <!-- Carga de Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Librerías para Generación de PDF (jsPDF y AutoTable) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
-
+    <!-- Configuración de Tailwind para usar el color primario y la fuente Inter -->
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        primary: '#3b82f6', // blue-500
-                        secondary: '#10b981', // emerald-500
-                        background: '#f3f4f6', // gray-100
-                        card: '#ffffff',
-                    }
+                        'primary-bs': '#4a7c59', // Tono de verde amigable
+                        'secondary-usd': '#003865', // Azul oscuro
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
                 }
             }
         }
     </script>
+    <!-- Carga de la fuente Inter de Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- Carga de las librerías jspdf y jspdf-autotable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        /* Estilos personalizados para el fondo y la tabla */
         body {
+            background-color: #f8f9fa;
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6; /* gray-100 */
         }
-        .input-style {
-            padding: 10px;
-            border: 1px solid #d1d5db; /* gray-300 */
-            border-radius: 8px;
-            font-size: 16px;
-            width: 100%;
-            transition: all 0.2s;
+        .container-card {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        .input-style:focus {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
-            outline: none;
-        }
-        .btn-primary {
-            background-color: #3b82f6;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            font-weight: 600;
-            transition: background-color 0.2s, transform 0.1s;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .btn-primary:hover {
-            background-color: #2563eb; /* blue-600 */
-        }
-        .btn-primary:active {
-            transform: scale(0.98);
-        }
-        .btn-delete {
-            background-color: #ef4444; /* red-500 */
-            color: white;
-            padding: 5px 10px;
-            border-radius: 6px;
-            font-size: 14px;
-            transition: background-color 0.2s;
-        }
-        .btn-delete:hover {
-            background-color: #dc2626; /* red-600 */
-        }
-        .btn-secondary {
-            background-color: #10b981; /* emerald-500 */
-            color: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            font-weight: 600;
-            transition: background-color 0.2s, transform 0.1s;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .btn-secondary:hover {
-            background-color: #059669; /* emerald-600 */
-        }
-        .btn-secondary:active {
-            transform: scale(0.98);
-        }
-        /* Estilos de tabla adaptados a móvil */
+        /* Clase para un mejor espaciado en la tabla móvil */
         @media (max-width: 640px) {
-            .table-responsive th, .table-responsive td {
-                display: block;
-                width: 100%;
-                text-align: left;
-                padding: 8px 10px;
-            }
-            .table-responsive th {
-                background-color: #e5e7eb; /* gray-200 */
-                font-weight: 700;
-                color: #1f2937; /* gray-800 */
-                border-bottom: 1px solid #d1d5db;
-            }
-            .table-responsive tr {
-                margin-bottom: 10px;
-                border: 1px solid #d1d5db;
-                border-radius: 8px;
-                display: block;
-                background-color: white;
-            }
-            .table-responsive tbody {
-                display: block;
-            }
-            .table-responsive thead {
-                display: none; /* Ocultar el encabezado de la tabla en móvil */
-            }
-            /* Mostrar encabezados como etiquetas en la fila */
-            .table-responsive td::before {
-                content: attr(data-label);
-                font-weight: 600;
-                display: inline-block;
-                width: 120px; /* Ancho fijo para la etiqueta */
-                color: #4b5563; /* gray-600 */
+            #inventory-table td, #inventory-table th {
+                padding: 0.5rem 0.25rem;
+                font-size: 0.8rem;
             }
         }
     </style>
-    <!-- Importaciones de Firebase -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, orderBy, deleteDoc, runTransaction, serverTimestamp, setLogLevel, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        // Configuración de Firebase - OBLIGATORIO usar variables globales
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let app, db, auth, userId = null;
-        let isAuthReady = false; 
-        
-        // Exponer funciones necesarias globalmente
-        window.initApp = initApp;
-        window.saveRate = saveRate;
-        window.addProduct = addProduct;
-        window.deleteProduct = deleteProduct;
-        window.updateTotal = updateTotal;
-        window.exportInventory = exportInventory; // Función de exportación a PDF
-        
-        // Referencias del DOM
-        const rateInput = document.getElementById('exchangeRateInput');
-        const rateDisplay = document.getElementById('currentRateDisplay');
-        const productsList = document.getElementById('productsList');
-        const totalBsDisplay = document.getElementById('totalBs');
-        const totalUsdDisplay = document.getElementById('totalUsd');
-        const userIdDisplay = document.getElementById('userIdDisplay');
-        const authStatus = document.getElementById('authStatus');
-        const connectionStatus = document.getElementById('connectionStatus');
-
-        // Referencias de Input del producto
-        const nameInput = document.getElementById('productName');
-        const priceInput = document.getElementById('priceUsd');
-        const qtyInput = document.getElementById('quantity');
-
-        let currentExchangeRate = 0.0;
-        let productsData = [];
-
-        // --- Rutas de Firestore ---
-        const getRateDocRef = (uid) => doc(db, 'artifacts', appId, 'users', uid, 'settings', 'exchange_rate');
-        const getProductsCollectionRef = (uid) => collection(db, 'artifacts', appId, 'users', uid, 'products');
-
-        async function initApp() {
-            try {
-                if (Object.keys(firebaseConfig).length === 0) {
-                    throw new Error("La configuración de Firebase no está disponible.");
-                }
-
-                // Inicializar Firebase
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                // 1. Configurar Persistencia Offline de Firestore
-                try {
-                    await enableIndexedDbPersistence(db);
-                    connectionStatus.textContent = 'Modo Offline: Activado';
-                } catch (err) {
-                    if (err.code === 'failed-precondition') {
-                        connectionStatus.textContent = 'Modo Offline: Compartido (solo una pestaña puede escribir)';
-                    } else if (err.code === 'unimplemented') {
-                        connectionStatus.textContent = 'Modo Offline: No Soportado';
-                    } else {
-                        console.error("Error al habilitar persistencia:", err);
-                        connectionStatus.textContent = 'Modo Offline: Error';
-                    }
-                }
-                
-                // 2. Manejo de autenticación
-                await setPersistence(auth, browserLocalPersistence);
-
-                authStatus.textContent = 'Inicializando autenticación...';
-                
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        userIdDisplay.textContent = `ID de Usuario: ${userId}`;
-                        authStatus.textContent = 'Conectado';
-                        isAuthReady = true;
-                        
-                        // 3. Iniciar listeners después de la autenticación
-                        listenToExchangeRate(userId);
-                        listenToProducts(userId);
-                    } else {
-                        userId = null;
-                        userIdDisplay.textContent = 'ID de Usuario: Desconocido';
-                        authStatus.textContent = 'Desconectado. Inicie sesión.';
-                        isAuthReady = true; 
-                        productsList.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">Inicia sesión para ver y guardar tus productos.</td></tr>`;
-                    }
-                });
-
-            } catch (error) {
-                console.error("Error al inicializar la aplicación o Firebase:", error);
-                authStatus.textContent = 'Error crítico de conexión.';
-                alertModal("Error de Conexión", "No se pudo conectar a la base de datos. Revisa la consola para más detalles.");
-            }
-        }
-
-        // --- FUNCIONES DE CÁLCULO Y ACTUALIZACIÓN DE UI ---
-
-        function formatCurrency(value, currency = 'Bs') {
-            const options = {
-                style: 'currency',
-                currency: currency === 'Bs' ? 'VEF' : 'USD', 
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            };
-            const formatter = new Intl.NumberFormat('es-VE', options);
-            const formatted = formatter.format(value);
-            if (currency === 'Bs') {
-                // Reemplazar el símbolo VEF por Bs.S y limpiar espacios
-                return formatted.replace('VEF', 'Bs.S').replace(/\s/g, ''); 
-            }
-            return formatted;
-        }
-
-        function calculateBs(usdPrice) {
-            const rate = parseFloat(currentExchangeRate);
-            if (isNaN(rate) || rate <= 0) return 0;
-            return usdPrice * rate;
-        }
-
-        function updateTotal() {
-            let totalUsd = 0;
-            let totalBs = 0;
-
-            productsData.forEach(product => {
-                totalUsd += product.priceUsd * product.quantity;
-                totalBs += product.subtotalBs; 
-            });
-
-            totalUsdDisplay.textContent = formatCurrency(totalUsd, 'USD');
-            totalBsDisplay.textContent = formatCurrency(totalBs, 'Bs');
-            // Actualizar el footer móvil
-            document.getElementById('totalUsd_mobile').textContent = formatCurrency(totalUsd, 'USD');
-            document.getElementById('totalBs_mobile').textContent = formatCurrency(totalBs, 'Bs');
-        }
-
-        function renderProducts(products) {
-            productsData = products;
-            productsList.innerHTML = ''; 
-
-            if (products.length === 0) {
-                productsList.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-500">No hay productos añadidos. ¡Añade el primero!</td></tr>`;
-                updateTotal();
-                return;
-            }
-
-            products.forEach(product => {
-                const subtotalUsd = product.priceUsd * product.quantity;
-                const subtotalBs = calculateBs(subtotalUsd);
-
-                product.subtotalBs = subtotalBs; 
-                product.subtotalUsd = subtotalUsd; 
-
-                const row = document.createElement('tr');
-                row.className = 'border-b last:border-b-0 hover:bg-gray-50 transition sm:block sm:mb-2';
-                
-                row.innerHTML = `
-                    <td data-label="Producto" class="p-3 text-sm font-medium text-gray-900 sm:font-normal sm:border-b sm:border-gray-200">${product.name}</td>
-                    <td data-label="Precio (USD)" class="p-3 text-sm text-gray-700">${formatCurrency(product.priceUsd, 'USD')}</td>
-                    <td data-label="Cantidad" class="p-3 text-sm text-gray-700">${product.quantity}</td>
-                    <td data-label="Subtotal (Bs)" class="p-3 text-sm font-semibold text-secondary">${formatCurrency(subtotalBs, 'Bs')}</td>
-                    <td data-label="Acciones" class="p-3 text-sm text-right sm:text-left">
-                        <button class="btn-delete" onclick="window.deleteProduct('${product.id}')">Eliminar</button>
-                    </td>
-                `;
-                productsList.appendChild(row);
-            });
-
-            updateTotal();
-        }
-
-        // --- FUNCIONES DE FIREBASE (CRUD) ---
-
-        function listenToExchangeRate(uid) {
-            if (!db) return;
-            const rateRef = getRateDocRef(uid);
-            
-            onSnapshot(rateRef, (docSnap) => {
-                let rate = 0.0;
-                // Verificar si estamos online/offline
-                if (!docSnap.metadata.fromCache || docSnap.metadata.hasPendingWrites) {
-                    connectionStatus.textContent = 'Sincronizado (Online)';
-                    connectionStatus.classList.remove('text-orange-500');
-                    connectionStatus.classList.add('text-secondary');
-                } else {
-                    connectionStatus.textContent = 'Sin conexión (Modo Offline)';
-                    connectionStatus.classList.remove('text-secondary');
-                    connectionStatus.classList.add('text-orange-500');
-                }
-
-                if (docSnap.exists() && docSnap.data().rate) {
-                    rate = parseFloat(docSnap.data().rate);
-                } else {
-                    rate = 36.5; 
-                    saveRate(rate);
-                }
-                
-                currentExchangeRate = rate;
-                rateInput.value = rate.toFixed(2);
-                rateDisplay.textContent = formatCurrency(rate, 'Bs') + " por $1 USD";
-                
-                renderProducts(productsData); 
-            }, (error) => {
-                console.error("Error al escuchar la tasa de cambio:", error);
-                rateDisplay.textContent = "Error al cargar la tasa";
-            });
-        }
-
-        async function saveRate(rateValue = null) {
-            if (!isAuthReady || !userId || !db) {
-                alertModal("Error de Conexión", "La aplicación aún no ha terminado de conectar. Por favor, espera un momento.");
-                return;
-            }
-            
-            let rateToSave;
-            if (rateValue !== null) {
-                rateToSave = parseFloat(rateValue);
-            } else {
-                rateToSave = parseFloat(rateInput.value);
-            }
-
-            if (isNaN(rateToSave) || rateToSave <= 0) {
-                alertModal("Error", "Por favor, introduce una tasa de cambio válida (mayor que cero).");
-                return;
-            }
-
-            const rateRef = getRateDocRef(userId);
-            try {
-                await setDoc(rateRef, { 
-                    rate: rateToSave, 
-                    lastUpdated: serverTimestamp() 
-                }, { merge: true });
-            } catch (e) {
-                console.error("Error al guardar la tasa: ", e);
-                alertModal("Error de Guardado", "No se pudo guardar la tasa. Si estás offline, se intentará guardar cuando te conectes.");
-            }
-        }
-
-        function listenToProducts(uid) {
-            if (!db) return;
-            const productsColRef = getProductsCollectionRef(uid);
-            const q = query(productsColRef, orderBy('createdAt', 'desc'));
-
-            onSnapshot(q, (snapshot) => {
-                const products = [];
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
-                    products.push({
-                        id: doc.id,
-                        name: data.name,
-                        priceUsd: data.priceUsd,
-                        quantity: data.quantity,
-                        createdAt: data.createdAt ? data.createdAt.toDate() : new Date()
-                    });
-                });
-                renderProducts(products);
-            }, (error) => {
-                console.error("Error al escuchar productos:", error);
-                productsList.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Error al cargar la lista de productos.</td></tr>`;
-            });
-        }
-
-        async function addProduct() {
-            if (!isAuthReady || !userId || !db) {
-                alertModal("Error de Conexión", "La aplicación aún no ha terminado de conectar. Por favor, espera un momento y vuelve a intentarlo.");
-                return;
-            }
-            
-            const name = nameInput.value.trim();
-            const priceUsd = parseFloat(priceInput.value);
-            const quantity = parseInt(qtyInput.value, 10);
-
-            if (!name || isNaN(priceUsd) || priceUsd <= 0 || isNaN(quantity) || quantity <= 0) {
-                alertModal("Error de Entrada", "Por favor, completa todos los campos con valores válidos (Nombre, Precio > 0, Cantidad > 0).");
-                return;
-            }
-
-            const productsColRef = getProductsCollectionRef(userId);
-            try {
-                await runTransaction(db, async (transaction) => {
-                    const newDocRef = doc(productsColRef); 
-                    transaction.set(newDocRef, {
-                        name: name,
-                        priceUsd: priceUsd,
-                        quantity: quantity,
-                        createdAt: serverTimestamp()
-                    });
-                });
-                
-                nameInput.value = '';
-                priceInput.value = '';
-                qtyInput.value = '1'; 
-
-            } catch (e) {
-                console.error("Error al añadir el producto: ", e);
-                alertModal("Error de Guardado", "No se pudo añadir el producto. Si estás offline, se pondrá en cola para sincronizar.");
-            }
-        }
-
-        async function deleteProduct(productId) {
-            if (!isAuthReady || !userId || !db) {
-                alertModal("Error de Conexión", "La aplicación aún no está lista.");
-                return;
-            }
-            
-            const productRef = doc(getProductsCollectionRef(userId), productId);
-
-            try {
-                await deleteDoc(productRef);
-            } catch (e) {
-                console.error("Error al eliminar el producto: ", e);
-                alertModal("Error de Eliminación", "No se pudo eliminar el producto. Si estás offline, se pondrá en cola para sincronizar.");
-            }
-        }
-
-        // --- FUNCIÓN PARA EXPORTAR INVENTARIO (PDF) ---
-        function exportInventory() {
-            if (productsData.length === 0) {
-                alertModal("Exportación", "No hay productos en el inventario para exportar.");
-                return;
-            }
-            
-            // 1. Inicializar jsPDF
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'mm', 'a4'); // 'p' = portrait, 'mm' = milímetros, 'a4' = tamaño
-            
-            // 2. Títulos y Metadatos
-            const date = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-            const rate = currentExchangeRate.toFixed(2);
-            let y = 15; // Posición inicial en Y
-
-            doc.setFontSize(18);
-            doc.text('Reporte de Inventario y Precios', 15, y);
-            y += 8;
-            
-            doc.setFontSize(10);
-            doc.setTextColor(100);
-            doc.text(`Fecha del Reporte: ${date}`, 15, y);
-            y += 5;
-            doc.text(`Tasa de Cambio Utilizada (Referencial): 1 USD = ${formatCurrency(rate, 'Bs')}`, 15, y);
-            y += 10;
-            
-            // 3. Preparar los datos para AutoTable
-            const head = [
-                ['Producto', 'Cantidad', 'Precio USD', 'Subtotal USD', 'Subtotal Bs']
-            ];
-
-            let totalUsd = 0;
-            let totalBs = 0;
-            
-            const body = productsData.map(product => {
-                const subtotalUsd = product.priceUsd * product.quantity;
-                const subtotalBs = product.subtotalBs;
-
-                totalUsd += subtotalUsd;
-                totalBs += subtotalBs;
-
-                return [
-                    product.name,
-                    product.quantity,
-                    formatCurrency(product.priceUsd, 'USD'),
-                    formatCurrency(subtotalUsd, 'USD'),
-                    formatCurrency(subtotalBs, 'Bs')
-                ];
-            });
-
-            // 4. Generar la Tabla
-            doc.autoTable({startY: y,
-                head: head,
-                body: body,
-                styles: { fontSize: 10, cellPadding: 3 },
-                headStyles: { fillColor: [59, 130, 246] }, // Tailwind blue-500
-                margin: { left: 15, right: 15 },
-                theme: 'striped',
-                columnStyles: {
-                    // Alinear números a la derecha
-                    2: { halign: 'right' }, 
-                    3: { halign: 'right' },
-                    4: { halign: 'right', fontStyle: 'bold' } 
-                },
-                didDrawPage: function (data) {
-                    // Footer: Número de página
-                    doc.setFontSize(10);
-                    doc.text(
-                        'Página ' + data.pageNumber,
-                        data.settings.margin.left,
-                        doc.internal.pageSize.height - 10
-                    );
-                }
-            });
-
-            // Obtener la posición Y donde termina la tabla
-            y = doc.autoTable.previous.finalY + 5; 
-
-            // 5. Agregar Totales
-            doc.setFontSize(12);
-            doc.setFont(undefined, 'bold');
-            doc.text(`TOTALES:`, 140, y); 
-            doc.setFont(undefined, 'normal');
-
-            y += 5;
-            doc.text(`Total en Dólares (USD): ${formatCurrency(totalUsd, 'USD')}`, 140, y, { align: 'right' });
-            y += 5;
-            doc.text(`Total en Bolívares (Bs): ${formatCurrency(totalBs, 'Bs')}`, 140, y, { align: 'right' });
-
-
-            // 6. Descargar el archivo
-            const filenameDate = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-            doc.save(`Inventario_${filenameDate}.pdf`);
-            
-            alertModal("Exportación Exitosa", `El archivo Inventario_${filenameDate}.pdf ha sido generado. Revisa tu carpeta de descargas.`);
-        }
-        
-        // --- FUNCIÓN DE MODAL DE ALERTA (Reemplazo de alert()) ---
-        function alertModal(title, message) {
-            const modal = document.getElementById('customAlertModal');
-            document.getElementById('alertTitle').textContent = title;
-            document.getElementById('alertMessage').textContent = message;
-            modal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden'; 
-        }
-  
-        document.getElementById('alertCloseBtn').addEventListener('click', () => {
-            const modal = document.getElementById('customAlertModal');
-            modal.classList.add('hidden');
-            document.body.style.overflow = ''; 
-        });
-        
-        // Inicializar la aplicación al cargar la ventana
-        window.onload = initApp;
-
-    </script>
 </head>
-<body class="bg-background min-h-screen p-4 sm:p-8">
-
-    <!-- Modal de Alerta Personalizado -->
-    <div id="customAlertModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div class="bg-card rounded-xl p-6 w-full max-w-sm shadow-2xl">
-            <h3 id="alertTitle" class="text-lg font-bold text-red-600 mb-2"></h3>
-            <p id="alertMessage" class="text-gray-700 mb-4"></p>
-            <button id="alertCloseBtn" class="w-full btn-primary bg-red-500 hover:bg-red-600">Entendido</button>
-        </div>
-    </div>
+<body class="p-4 sm:p-8 min-h-screen">
     
-    <!-- Contenedor Principal Adaptable -->
-    <main class="max-w-4xl mx-auto space-y-8">
-        
-        <!-- Header y Tasa de Cambio -->
-        <header class="bg-card p-6 rounded-xl shadow-lg">
-            <h1 class="text-3xl font-extrabold text-gray-800 mb-2">Gestor de Precios y Productos</h1>
-            <div class="flex flex-col sm:flex-row justify-between text-sm mb-4 space-y-1 sm:space-y-0">
-                <p class="text-gray-500" id="authStatus">Desconectado</p>
-                <!-- Indicador de conexión -->
-                <p id="connectionStatus" class="font-medium text-secondary">Inicializando modo Offline...</p>
-            </div>
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold text-primary-bs mb-1">Control de Inventario Offline</h1>
+            <p class="text-secondary-usd text-lg font-medium">Gestión de Productos en USD y Bs.</p>
+        </header>
 
-            <div class="flex flex-col sm:flex-row sm:items-end gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div class="flex-grow">
-                    <label for="exchangeRateInput" class="block text-sm font-medium text-gray-700 mb-1">
-                        Tasa de Cambio (Bs. por $1 USD)
-                                          </label>
-                    <input type="number" id="exchangeRateInput" step="0.01" value="0.00" class="input-style" placeholder="Ej: 36.50">
+        <!-- Sección de Tasa de Cambio -->
+        <section id="rate-section" class="bg-white p-6 rounded-xl mb-6 container-card border border-gray-100">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 4v2m0 2v2m0 0a3 3 0 01-3 3h6a3 3 0 01-3-3m-6 3a3 3 0 00-3 3v1h18v-1a3 3 0 00-3-3m-6 0h.01"></path></svg>
+                Tasa de Cambio (Bs. / $1 USD)
+            </h2>
+            <div class="flex flex-col sm:flex-row gap-4 items-end">
+                <div class="flex-grow w-full">
+                    <label for="exchange-rate" class="block text-sm font-medium text-gray-500 mb-1">Valor Actual</label>
+                    <input type="number" step="0.01" min="0.01" id="exchange-rate" placeholder="Ej: 36.50"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-bs focus:border-primary-bs transition duration-150 ease-in-out">
                 </div>
-                <button onclick="saveRate()" class="btn-primary w-full sm:w-auto flex-shrink-0">
+                <button onclick="saveExchangeRate()"
+                        class="w-full sm:w-auto px-6 py-2 bg-primary-bs text-white font-semibold rounded-lg hover:bg-primary-bs/90 transition duration-150 ease-in-out shadow-md">
                     Guardar Tasa
                 </button>
             </div>
-            
-            <div class="mt-4 text-center p-3 bg-secondary bg-opacity-10 rounded-lg">
-                <p class="text-sm text-secondary font-medium">Tasa Configurada:</p>
-                <p id="currentRateDisplay" class="text-xl font-bold text-secondary">Bs. 0.00 por $1 USD</p>
-            </div>
-        </header>
-        
-        <!-- Formulario para Añadir Producto -->
-        <section class="bg-card p-6 rounded-xl shadow-lg">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Añadir Nuevo Producto</h2>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div class="sm:col-span-1">
-                    <label for="productName" class="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto</label>
-                    <input type="text" id="productName" class="input-style" placeholder="Ej: Laptop Gamer">
-                </div>
-                
-                <div>
-                    <label for="priceUsd" class="block text-sm font-medium text-gray-700 mb-1">Precio en USD ($)</label>
-                    <input type="number" id="priceUsd" step="0.01" class="input-style" placeholder="Ej: 850.00">
-                </div>
-                
-                <div>
-                    <label for="quantity" class="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
-                    <input type="number" id="quantity" step="1" class="input-style" value="1" min="1">
-                </div>
-                
-                <div class="flex items-end pt-2 sm:pt-0">
-                    <button onclick="addProduct()" class="btn-primary w-full h-10">
-                        Añadir
-                    </button>
-                </div>
-            </div>
+            <p id="current-rate-display" class="mt-3 text-sm text-gray-600 font-medium"></p>
         </section>
-      
-        <!-- Listado de Productos -->
-        <section class="bg-card p-4 rounded-xl shadow-lg overflow-x-auto">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-semibold text-gray-800">Inventario Actual</h2>
-                <button onclick="exportInventory()" class="btn-secondary text-sm flex items-center">
-                    <!-- Icono de PDF SVG -->
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 2a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 000 2h6a1 1 0 100-2H7zm0 3a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
-                    </svg>
-                    Exportar (PDF)
+
+        <!-- Sección de Agregar Producto -->
+        <section id="product-section" class="bg-white p-6 rounded-xl mb-6 container-card border border-gray-100">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-primary-bs" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Añadir Nuevo Producto
+            </h2>
+            <form id="product-form" class="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                <div class="sm:col-span-2">
+                    <label for="product-name" class="block text-sm font-medium text-gray-500 mb-1">Nombre del Producto</label>
+                    <input type="text" id="product-name" required placeholder="Ej: Camisa Deportiva"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-bs focus:border-primary-bs">
+                </div>
+                <div>
+                    <label for="product-price-usd" class="block text-sm font-medium text-gray-500 mb-1">Precio (USD $)</label>
+                    <input type="number" step="0.01" min="0.01" id="product-price-usd" required placeholder="Ej: 15.00"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-secondary-usd focus:border-secondary-usd">
+                </div>
+                <div>
+                    <label for="product-quantity" class="block text-sm font-medium text-gray-500 mb-1">Cantidad</label>
+                    <input type="number" step="1" min="1" id="product-quantity" required placeholder="Ej: 5"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-secondary-usd focus:border-secondary-usd">
+                </div>
+                <button type="submit"
+                        class="w-full sm:col-span-4 lg:col-span-1 px-6 py-2 bg-secondary-usd text-white font-semibold rounded-lg hover:bg-secondary-usd/90 transition duration-150 ease-in-out shadow-md">
+                    Añadir a Inventario
+                </button>
+            </form>
+        </section>
+        
+        <!-- Sección de Inventario -->
+        <section id="inventory-section" class="bg-white p-6 rounded-xl container-card border border-gray-100">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-primary-bs" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                Inventario Actual
+            </h2>
+
+            <div class="overflow-x-auto relative shadow-md rounded-lg mb-6">
+                <table class="w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-white uppercase bg-primary-bs">
+                        <tr>
+                            <th scope="col" class="py-3 px-2 sm:px-4">Producto</th>
+                            <th scope="col" class="py-3 px-2 sm:px-4 text-center">Cant.</th>
+                            <th scope="col" class="py-3 px-2 sm:px-4 text-right">Precio ($)</th>
+                            <th scope="col" class="py-3 px-2 sm:px-4 text-right">Subtotal (Bs.)</th>
+                            <th scope="col" class="py-3 px-2 sm:px-4 text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-body">
+                        <!-- Filas de productos se insertarán aquí -->
+                    </tbody>
+                </table>
+                <p id="empty-message" class="text-center py-4 text-gray-500 bg-white" style="display:none;">
+                    No hay productos en el inventario.
+                </p>
+            </div>
+
+            <!-- Totales Generales y Exportación -->
+            <div id="totals-summary" class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mt-4 p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <!-- Totales -->
+                <div class="mb-4 sm:mb-0">
+                    <p class="text-base font-bold text-gray-700">Total General USD: <span id="total-usd" class="text-secondary-usd ml-2 text-lg"></span></p>
+                    <p class="text-base font-bold text-gray-700">Total General Bs.: <span id="total-bs" class="text-primary-bs ml-2 text-lg"></span></p>
+                </div>
+                <!-- Botón de Exportar -->
+                <button onclick="exportToPDF()" id="export-btn" disabled
+                        class="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition duration-150 ease-in-out shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Exportar a PDF
                 </button>
             </div>
-            
-            <table class="min-w-full divide-y divide-gray-200 table-responsive">
-                <thead class="bg-gray-50 hidden sm:table-header-group">
-                    <tr>
-                        <th scope="col" class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/4">Producto</th>
-                        <th scope="col" class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/5">Precio (USD)</th>
-                        <th scope="col" class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/6">Cantidad</th>
-                        <th scope="col" class="px-3 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/4">Subtotal (Bs)</th>
-                        <th scope="col" class="px-3 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider w-1/6">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="productsList" class="bg-card divide-y divide-gray-200 sm:divide-y-0">
-                    <!-- Los productos se insertarán aquí por JavaScript -->
-                    <tr>
-                        <td colspan="5" class="p-4 text-center text-gray-500">Cargando productos...</td>
-                    </tr>
-                </tbody>
-                <!-- Fila de Totales para Desktop/Tablet -->
-                <tfoot class="bg-gray-100 hidden sm:table-footer-group">
-                    <tr>
-                        <td colspan="3" class="px-3 py-3 text-right text-lg font-bold text-gray-800">Total General:</td>
-                        <td class="px-3 py-3 text-left text-lg font-bold text-secondary" id="totalBs">Bs. 0.00</td>
-                        <td class="px-3 py-3 text-right text-lg font-bold text-gray-700" id="totalUsd">$0.00</td>
-                    </tr>
-                </tfoot>
-            </table>
-                      
-            <!-- Bloque de Totales para Móvil -->
-            <div class="sm:hidden mt-4 pt-4 border-t border-gray-200 space-y-2">
-                <div class="flex justify-between items-center text-lg font-semibold text-gray-800">
-                    <span>Total General (USD):</span>
-                    <span id="totalUsd_mobile" class="text-gray-700 font-bold">$0.00</span>
-                </div>
-                <div class="flex justify-between items-center text-xl font-bold text-secondary">
-                    <span>Total General (Bs):</span>
-                    <span id="totalBs_mobile">Bs. 0.00</span>
-                </div>
-            </div>
-            
         </section>
         
-        <footer class="text-center text-xs text-gray-400 p-4">
-            <p>Datos almacenados de forma privada en Firestore.</p>
-            <p id="userIdDisplay"></p>
-        </footer>
-    </main>
+        <!-- Modal de Mensajes (No usar alert()) -->
+        <div id="message-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center z-50">
+            <div class="bg-white p-6 rounded-lg max-w-sm w-full shadow-2xl">
+                <h3 id="modal-title" class="text-lg font-bold mb-3 text-red-600">Error</h3>
+                <p id="modal-body" class="text-gray-700 mb-4">Mensaje de error.</p>
+                <div class="flex justify-end">
+                    <button onclick="hideModal()" class="px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Definición de variables globales y claves de almacenamiento
+        let exchangeRate = 0;
+        let products = [];
+        const RATE_KEY = 'inventarioRate';
+        const PRODUCTS_KEY = 'inventarioProducts';
+        const doc = window.jspdf.jsPDF; // Referencia a jspdf
+
+        // --- Funciones de Utilidad ---
+
+        /** Muestra un modal de mensaje de error o éxito. */
+        function showModal(title, body, isError = true) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-title').className = isError ? 'text-lg font-bold mb-3 text-red-600' : 'text-lg font-bold mb-3 text-primary-bs';
+            document.getElementById('modal-body').textContent = body;
+            document.getElementById('message-modal').classList.remove('hidden');
+            document.getElementById('message-modal').classList.add('flex');
+        }
+
+        /** Oculta el modal de mensaje. */
+        function hideModal() {
+            document.getElementById('message-modal').classList.add('hidden');
+            document.getElementById('message-modal').classList.remove('flex');
+        }
+
+        /** Formatea un número como Bolívares (Bs.). */
+        const formatBs = (value) => {
+            // Usar 'es-VE' para formato de Venezuela (coma como separador decimal)
+            return new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VEF', minimumFractionDigits: 2 }).format(value).replace('VEF', 'Bs.');
+        };
+
+        /** Formatea un número como Dólares Americanos (USD $). */
+        const formatUsd = (value) => {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(value);
+        };
+        
+        // --- Manejo de la Tasa de Cambio ---
+
+        /** Guarda la tasa de cambio en localStorage y actualiza la UI. */
+        function saveExchangeRate() {
+            const rateInput = document.getElementById('exchange-rate');
+            const newRate = parseFloat(rateInput.value);
+
+            if (isNaN(newRate) || newRate <= 0) {
+                showModal("Error de Tasa", "Por favor, ingrese una tasa de cambio válida y positiva (Bs. por $1 USD).", true);
+                return;
+            }
+
+            exchangeRate = newRate;
+            localStorage.setItem(RATE_KEY, newRate.toString());
+            renderInventory();
+            rateInput.value = ''; // Limpiar campo después de guardar
+            showModal("Tasa Guardada", `La tasa de cambio se ha actualizado a ${formatBs(newRate)} por $1 USD.`, false);
+        }
+
+        /** Carga la tasa de cambio desde localStorage. */
+        function loadExchangeRate() {
+            const storedRate = localStorage.getItem(RATE_KEY);
+            exchangeRate = storedRate ? parseFloat(storedRate) : 0;
+
+            const rateDisplay = document.getElementById('current-rate-display');
+            if (exchangeRate > 0) {
+                rateDisplay.textContent = `Tasa actual: 1 USD = ${formatBs(exchangeRate)}`;
+                rateDisplay.classList.remove('text-red-500');
+                rateDisplay.classList.add('text-primary-bs');
+            } else {
+                rateDisplay.textContent = '¡Advertencia! Tasa de cambio no establecida. No se pueden calcular los totales en Bs.';
+                rateDisplay.classList.remove('text-primary-bs');
+                rateDisplay.classList.add('text-red-500');
+            }
+        }
+
+        // --- Manejo de Productos ---
+
+        /** Guarda el array de productos en localStorage. */
+        function saveProducts() {
+            localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+        }
+
+        /** Carga el array de productos desde localStorage. */
+        function loadProducts() {
+            const storedProducts = localStorage.getItem(PRODUCTS_KEY);
+            try {
+                products = storedProducts ? JSON.parse(storedProducts) : [];
+            } catch (e) {
+                console.error("Error al parsear productos desde localStorage:", e);
+                products = [];
+            }
+        }
+        
+        /** Añade un producto al inventario. */
+        document.getElementById('product-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const name = document.getElementById('product-name').value.trim();
+            const priceUSD = parseFloat(document.getElementById('product-price-usd').value);
+            const quantity = parseInt(document.getElementById('product-quantity').value);
+
+            if (!name || isNaN(priceUSD) || priceUSD <= 0 || isNaN(quantity) || quantity <= 0) {
+                showModal("Datos Inválidos", "Por favor, complete todos los campos con valores positivos y válidos.", true);
+                return;
+            }
+
+            const newProduct = {
+                id: Date.now(), // ID único basado en timestamp
+                name: name,
+                priceUSD: priceUSD,
+                quantity: quantity
+            };
+
+            products.push(newProduct);
+            saveProducts();
+            renderInventory();
+
+            // Limpiar el formulario
+            document.getElementById('product-form').reset();
+        });
+
+        /** Elimina un producto por su ID. */
+        function deleteProduct(id) {
+            // Usar un modal de confirmación visual en lugar de window.confirm()
+            const confirmed = confirm(`¿Está seguro de que desea eliminar este producto del inventario?`);
+            if (confirmed) {
+                products = products.filter(p => p.id !== id);
+                saveProducts();
+                renderInventory();
+                showModal("Producto Eliminado", "El producto fue eliminado exitosamente del inventario.", false);
+            }
+        }
+        
+        // --- Renderizado y Cálculos ---
+
+        /** Renderiza la tabla de inventario y calcula los totales. */
+        function renderInventory() {
+            loadExchangeRate(); // Asegura que la tasa esté cargada
+            loadProducts(); // Asegura que los productos estén cargados
+            const body = document.getElementById('inventory-body');
+            const emptyMessage = document.getElementById('empty-message');
+            const exportBtn = document.getElementById('export-btn');
+
+            body.innerHTML = '';
+            let totalUSD = 0;
+            let totalBs = 0;
+
+            if (products.length === 0) {
+                emptyMessage.style.display = 'block';
+                exportBtn.disabled = true;
+            } else {
+                emptyMessage.style.display = 'none';
+                exportBtn.disabled = false;
+            }
+
+            products.forEach(product => {
+                const subtotalUSD = product.priceUSD * product.quantity;
+                const subtotalBs = exchangeRate > 0 ? subtotalUSD * exchangeRate : 0;
+
+                totalUSD += subtotalUSD;
+                totalBs += subtotalBs;
+
+                const row = body.insertRow();
+                row.className = 'bg-white border-b hover:bg-gray-50';
+
+                // Producto
+                row.insertCell().textContent = product.name;
+
+                // Cantidad
+                row.insertCell().textContent = product.quantity;
+                row.cells[1].className = 'text-center';
+
+                // Precio ($)
+                row.insertCell().textContent = formatUsd(product.priceUSD);
+                row.cells[2].className = 'text-right font-medium text-secondary-usd';
+
+                // Subtotal (Bs.)
+                const subtotalCell = row.insertCell();
+                if (exchangeRate > 0) {
+                    subtotalCell.textContent = formatBs(subtotalBs);
+                    subtotalCell.className = 'text-right font-bold text-primary-bs';
+                } else {
+                    subtotalCell.textContent = 'Tasa no fijada';
+                    subtotalCell.className = 'text-right text-gray-400';
+                          }
+                
+                // Acción (Eliminar)
+                const actionCell = row.insertCell();
+                actionCell.className = 'text-center';
+                const deleteBtn = document.createElement('button');
+                deleteBtn.innerHTML = `<svg class="w-5 h-5 text-red-500 hover:text-red-700 transition duration-150" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                deleteBtn.title = 'Eliminar producto';
+                deleteBtn.onclick = () => deleteProduct(product.id);
+                actionCell.appendChild(deleteBtn);
+            });
+
+            // Actualizar totales generales
+            document.getElementById('total-usd').textContent = formatUsd(totalUSD);
+            document.getElementById('total-bs').textContent = exchangeRate > 0 ? formatBs(totalBs) : 'N/A';
+            document.getElementById('total-bs').className = exchangeRate > 0 ? 'text-primary-bs ml-2 text-lg' : 'text-gray-400 ml-2 text-lg';
+        }
+
+
+        // --- Exportación a PDF ---
+
+        /** Exporta el inventario y totales a un archivo PDF. */
+        function exportToPDF() {
+            if (products.length === 0) {
+                showModal("Error de Exportación", "No hay productos para exportar.", true);
+                return;
+            }
+
+            const jsPDF = doc;
+            const pdf = new jsPDF('p', 'mm', 'a4'); // 'p' for portrait, 'mm' units, 'a4' size
+            const date = new Date().toLocaleDateString('es-VE');
+            const time = new Date().toLocaleTimeString('es-VE');
+
+            // --- Encabezado ---
+            pdf.setFontSize(18);
+            pdf.text('Reporte de Inventario', 14, 20);
+            pdf.setFontSize(10);
+            pdf.text(`Fecha de Reporte: ${date} ${time}`, 14, 26);
+            pdf.text(`Tasa de Cambio (1 USD): ${formatBs(exchangeRate)}`, 14, 32);
+            
+            // --- Datos de la Tabla ---
+
+            const headers = [
+                ['Producto', 'Cant.', 'Precio Unit. (USD)', 'Subtotal (USD)', 'Subtotal (Bs.)']
+            ];
+
+            let totalUSD = 0;
+            let totalBs = 0;
+
+            const bodyData = products.map(p => {
+                const subtotalUSD = p.priceUSD * p.quantity;
+                const subtotalBs = p.priceUSD * p.quantity * exchangeRate;
+
+                totalUSD += subtotalUSD;
+                totalBs += subtotalBs;
+
+                // Usar formato simple para la tabla PDF, jspdf-autotable prefiere strings sin formato de moneda.
+                return [
+                    p.name,
+                    p.quantity.toFixed(0),
+                    p.priceUSD.toFixed(2),
+                    subtotalUSD.toFixed(2),
+                    exchangeRate > 0 ? subtotalBs.toFixed(2) : 'N/A'
+                ];
+            });
+
+            pdf.autoTable({
+                head: headers,
+                body: bodyData,
+                startY: 40,
+                theme: 'striped',
+                headStyles: { fillColor: [74, 124, 89], textColor: 255 }, // Color primario (Bs.)
+                styles: { fontSize: 10, cellPadding: 2 },
+                columnStyles: {
+                    0: { cellWidth: 50 },
+                    1: { halign: 'center' },
+                    2: { halign: 'right' },
+                    3: { halign: 'right', fontStyle: 'bold' },
+                    4: { halign: 'right', fontStyle: 'bold' }
+                },
+                didParseCell: (data) => {
+                    // Añadir el símbolo de moneda en la vista final del PDF
+                    if (data.section === 'body') {
+                        if (data.column.index === 2 || data.column.index === 3) {
+                            if (data.cell.text[0] !== 'N/A') {
+                                data.cell.text[0] = '$' + data.cell.text[0];
+                            }
+                        } else if (data.column.index === 4) {
+                            if (data.cell.text[0] !== 'N/A') {
+                                data.cell.text[0] = 'Bs. ' + data.cell.text[0];
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // --- Totales Finales ---
+
+            const finalY = pdf.lastAutoTable.finalY + 10;
+            pdf.setFontSize(12);
+            pdf.setTextColor(51, 51, 51); // Negro oscuro
+            pdf.text(`Totales Generales:`, 14, finalY);
+
+            pdf.setFontSize(14);
+            pdf.setTextColor(0, 56, 101); // Azul (USD)
+            pdf.text(`Total USD: ${formatUsd(totalUSD)}`, 14, finalY + 7);
+
+            pdf.setTextColor(74, 124, 89); // Verde (Bs.)
+            pdf.text(`Total Bs.: ${exchangeRate > 0 ? formatBs(totalBs) : 'Tasa no fijada'}`, 14, finalY + 14);
+
+            // --- Footer ---
+            pdf.setFontSize(8);
+            pdf.setTextColor(150);
+            pdf.text('Generado por Inventario Offline -  ', 14, 290, { align: 'left' });
+
+
+            // Guardar el PDF
+            pdf.save(`Inventario_${date}.pdf`);
+        }
+
+        /** Inicializa la aplicación al cargar la página. */
+        window.onload = function() {
+            // Reemplazar window.confirm con una implementación simple para evitar problemas de iframe
+            window.confirm = (message) => {
+                const modal = document.getElementById('message-modal');
+                const titleEl = document.getElementById('modal-title');
+                const bodyEl = document.getElementById('modal-body');
+
+                titleEl.textContent = 'Confirmar Acción';
+                titleEl.className = 'text-lg font-bold mb-3 text-primary-bs';
+                bodyEl.textContent = message;
+
+                return new Promise((resolve) => {
+                    const confirmButton = document.createElement('button');
+                    confirmButton.textContent = 'Sí, continuar';
+                    confirmButton.className = 'px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 mr-2';
+                    confirmButton.onclick = () => {
+                        hideModal();
+                        resolve(true);
+                    };
+                    
+                    const cancelButton = document.createElement('button');
+                    cancelButton.textContent = 'Cancelar';
+                    cancelButton.className = 'px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300';
+                    cancelButton.onclick = () => {
+                        hideModal();
+                        resolve(false);
+                    };
+
+                    // Limpiar y añadir botones
+                    const footer = modal.querySelector('.flex.justify-end');
+                    footer.innerHTML = '';
+                    footer.appendChild(confirmButton);
+                    footer.appendChild(cancelButton);
+
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                });
+            };
+
+            renderInventory(); // Inicializa la vista con los datos guardados
+        };
+    </script>
 </body>
 </html>
