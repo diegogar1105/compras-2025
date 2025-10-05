@@ -14,7 +14,7 @@
                     colors: {
                         'primary-bs': '#4a7c59', // Tono de verde amigable (Verde)
                         'secondary-usd': '#003865', // Azul oscuro (USD)
-                        'warning-bs': '#ffc107', // Amarillo para advertencias/saldo
+                        'warning-bs': '#ffc107', // Amarillo para advertencias/saldo (YA NO USAMOS ESTE PARA SALDO)
                         'edit-color': '#f97316', // Naranja para el modo edición
                         'danger': '#dc2626', // Rojo
                         'success': '#16a34a', // Verde de éxito
@@ -30,892 +30,757 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <!-- Carga de las librerías jspdf y jspdf-autotable para generar el PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <!-- Carga de Phosphor Icons para iconos -->
+    <script src="https://unpkg.com/phosphor-icons"></script>
+    <!-- Código para asegurar que window.jsPDF esté disponible globalmente (necesario por la forma en que carga jspdf) -->
+    <script>window.jsPDF = window.jspdf.jsPDF;</script>
     <style>
-        /* Estilos de scrollbar personalizados */
-        ::-webkit-scrollbar {
-            width: 8px;
+        /* Estilos generales para asegurar una buena visualización en dispositivos móviles */
+        .container {
+            max-width: 90%;
+            margin-left: auto;
+            margin-right: auto;
         }
-        ::-webkit-scrollbar-thumb {
-            background-color: #cbd5e1; /* gris claro */
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background-color: #94a3b8; /* gris medio */
+        @media (min-width: 640px) {
+            .container {
+                max-width: 600px; /* Ancho máximo para desktop/tablet */
+            }
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-4 sm:p-8 font-sans">
+<body class="bg-gray-50 min-h-screen p-4 sm:p-8 font-sans">
 
-    <div class="max-w-6xl mx-auto bg-white shadow-2xl rounded-xl p-4 sm:p-8">
-
-        <!-- Encabezado y Configuración -->
-        <header class="mb-8 border-b pb-4">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">Inventario Offline</h1>
-            <p class="text-gray-500">Gestión de productos y cálculo de valor en Bolívares (Bs.) y Dólares (USD).</p>
+    <div class="container mx-auto">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold text-gray-800 flex items-center justify-center">
+                <i class="ph-wallet-fill text-primary-bs mr-3 text-3xl"></i>
+                Control de Inventario <span class="text-secondary-usd ml-2">(Bs. / USD)</span>
+            </h1>
+            <p class="text-gray-500 mt-2">Gestiona tus gastos en ambas divisas.</p>
         </header>
-      
-        <!-- Configuración Financiera (Tasa de Cambio y Saldo) -->
-        <section class="bg-blue-50 border-l-4 border-secondary-usd p-4 rounded-lg mb-8 shadow-inner">
-            <h2 class="text-xl font-semibold text-secondary-usd mb-4 flex items-center">
-                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
-                Configuración y Saldo
-            </h2>
-            <form id="config-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label for="exchange-rate" class="block text-sm font-medium text-gray-700">Tasa de Cambio (USD a Bs.)</label>
-                    <input type="number" id="exchange-rate" step="0.01" required value="0.00"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-secondary-usd focus:ring-secondary-usd p-2 border balance-input"
-                           placeholder="Ej: 36.50">
-                    <!-- ACTUALIZACIÓN: Mensaje de info para el nuevo comportamiento -->
-                    <p class="text-xs text-gray-500 mt-1">Si es 0.00, el sistema operará solo con USD.</p>
+
+        <!-- Sección de Configuración y Resumen Financiero -->
+        <div class="grid grid-cols-1 gap-6 mb-8">
+            
+            <!-- Sección de Configuración -->
+            <div class="p-6 bg-white rounded-xl shadow-lg">
+                <h2 class="text-xl font-bold text-secondary-usd mb-4 border-b pb-2">Configuración Financiera</h2>
+
+                <!-- Tasa de Cambio -->
+                <div class="mb-4">
+                    <label for="exchange_rate" class="block text-sm font-medium text-gray-700">Tasa de Cambio (1 USD a Bs.)</label>
+                    <input type="number" id="exchange_rate" name="exchange_rate" class="w-full mt-1 p-2 border rounded-lg focus:ring-secondary-usd focus:border-secondary-usd text-lg" value="0.00" min="0.01" step="0.01">
                 </div>
-                <div>
-                    <label for="initial-balance-bs" class="block text-sm font-medium text-gray-700">Saldo Inicial (Bs.)</label>
-                    <input type="number" id="initial-balance-bs" step="0.01" value="0.00"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-secondary-usd focus:ring-secondary-usd p-2 border balance-input"
-                           placeholder="0.00">
-                    <p class="text-xs text-gray-500 mt-1">Opcional. Para cálculo de saldo restante.</p>
+
+                <!-- Saldo Inicial en Bolívares -->
+                <div class="mb-4">
+                    <label for="initial_bs_balance" class="block text-sm font-medium text-gray-700">Saldo Inicial Total en Bolívares (Bs.)</label>
+                    <input type="number" id="initial_bs_balance" name="initial_bs_balance" class="w-full mt-1 p-2 border rounded-lg focus:ring-primary-bs focus:border-primary-bs text-xl font-bold" value="0" min="0" step="0.01">
                 </div>
-                <div>
-                    <label for="initial-balance-usd" class="block text-sm font-medium text-gray-700">Saldo Inicial (USD)</label>
-                    <input type="number" id="initial-balance-usd" step="0.01" value="0.00"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-secondary-usd focus:ring-secondary-usd p-2 border balance-input"
-                           placeholder="0.00">
-                    <p class="text-xs text-gray-500 mt-1">Opcional. Para cálculo de saldo restante.</p>
+
+                <!-- Saldo Inicial USD -->
+                <div class="mb-4">
+                    <label for="initial_usd_balance" class="block text-sm font-medium text-gray-700">Saldo Inicial en Dólares (USD)</label>
+                    <input type="number" id="initial_usd_balance" name="initial_usd_balance" class="w-full mt-1 p-2 border rounded-lg focus:ring-secondary-usd focus:border-secondary-usd text-lg" value="0.00" min="0" step="0.01">
                 </div>
-                <button type="submit" class="md:col-span-3 bg-secondary-usd text-white py-2 px-4 rounded-md hover:bg-blue-900 transition-colors font-semibold shadow-md">
+
+                <!-- Saldo Equivalente (Previsualización de la suma total convertida) -->
+                <div class="flex justify-between items-center mb-4 p-2 bg-gray-100 rounded-lg border">
+                    <!-- CAMBIO SOLICITADO: QUITAR LA PALABRA COMBINADO -->
+                    <span class="text-gray-600 font-medium text-sm">PRESUPUESTO TOTAL (EQUIVALENTE):</span> 
+                    <div class="text-right">
+                        <!-- Esto ahora muestra el total combinado de ambas monedas -->
+                        <span id="equivalent_usd" class="font-bold text-sm text-secondary-usd block">0.00 USD</span>
+                        <span id="equivalent_bs" class="font-bold text-sm text-primary-bs block">0.00 Bs.</span>
+                    </div>
+                </div>
+
+                <!-- Botón de Guardar Configuración -->
+                <button id="save_config_btn" class="w-full bg-primary-bs text-white py-2 rounded-lg font-semibold hover:bg-opacity-90 transition duration-150 shadow-md flex items-center justify-center">
+                    <i class="ph-floppy-disk-fill mr-2"></i>
                     Guardar Configuración
                 </button>
-            </form>
-        </section>
-      
-        <!-- Formulario para Agregar/Editar Productos -->
-        <section class="bg-gray-50 p-6 rounded-xl shadow-lg mb-8">
-            <h2 id="form-title" class="text-2xl font-bold text-primary-bs mb-4">Agregar Nuevo Producto</h2>
-            <form id="product-form" data-mode="add">
-                <!-- Campo oculto para el ID del producto en modo edición -->
-                <input type="hidden" id="product-id">
+            </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <!-- Nombre del Producto -->
-                    <div class="md:col-span-2">
-                        <label for="product-name" class="block text-sm font-medium text-gray-700">Nombre del Producto</label>
-                        <input type="text" id="product-name" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-bs focus:ring-primary-bs p-2 border"
-                               placeholder="Ej: Harina de Maíz">
-                    </div>
-
-                    <!-- Cantidad -->
-                    <div>
-                        <label for="product-quantity" class="block text-sm font-medium text-gray-700">Cantidad (Unidades)</label>
-                        <input type="number" id="product-quantity" required min="1"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-bs focus:ring-primary-bs p-2 border"
-                               placeholder="1">
-                    </div>
-                  
-                    <!-- Precio en USD -->
-                    <div>
-                        <label for="price-usd" class="block text-sm font-medium text-gray-700">Precio Unitario (USD)</label>
-                        <input type="number" id="price-usd" step="0.01" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-bs focus:ring-primary-bs p-2 border"
-                               placeholder="0.00">
-                    </div>
+            <!-- Sección de Resumen Financiero -->
+            <div id="financial-summary" class="p-6 bg-white rounded-xl shadow-lg">
+                <p class="font-bold text-xl mb-3 text-secondary-usd border-b pb-2">Control de Saldo</p>
+                
+                <!-- Muestra el Total Gastado -->
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-gray-600 font-medium">Total Gastado (Bs.):</span>
+                    <span id="total-spent-bs" class="font-semibold text-lg text-danger">0.00 Bs.</span>
+                </div>
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-gray-600 font-medium">Total Gastado (USD):</span>
+                    <span id="total-spent-usd" class="font-semibold text-lg text-secondary-usd">0.00 USD</span>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <!-- Precio en Bs. -->
-                    <div class="md:col-span-2">
-                        <label for="price-bs" class="block text-sm font-medium text-gray-700">Precio Unitario (Bs.)</label>
-                        <input type="number" id="price-bs" step="0.01" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-bs focus:ring-primary-bs p-2 border"
-                               placeholder="0.00">
-                        <p id="conversion-info" class="text-xs text-gray-500 mt-1"></p>
-                    </div>
-
-                    <!-- Botones de Acción -->
-                    <div class="md:col-span-2 flex justify-end space-x-3 mt-6">
-                        <button type="button" id="cancel-edit-btn" class="hidden bg-gray-400 text-white py-2 px-4 rounded-md hover:bg-gray-600 transition-colors font-semibold shadow-md">
-                            Cancelar Edición
-                        </button>
-                        <button type="submit" id="submit-btn" class="bg-primary-bs text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors font-semibold shadow-md flex-grow">
-                            Agregar Producto
-                        </button>
-                    </div>
+                <!-- Muestra el Saldo Restante en Bs. (Ahora incluye el equivalente de USD en el cálculo) -->
+                <div class="flex justify-between items-center pt-3 border-t border-gray-300 mb-4">
+                    <span class="text-gray-800 font-extrabold">SALDO RESTANTE (Bs.):</span>
+                    <span id="remaining-bs-balance" class="font-extrabold text-3xl text-success">0.00 Bs.</span>
                 </div>
-            </form>
-        </section>
+                
+                <!-- Muestra el Saldo Restante en USD (Ahora incluye el equivalente de Bs. en el cálculo) -->
+                <div class="flex justify-between items-center pt-2 border-t border-gray-100">
+                    <span class="text-gray-800 font-extrabold">SALDO RESTANTE (USD):</span>
+                    <span id="remaining-usd-balance" class="font-extrabold text-2xl text-secondary-usd">0.00 USD</span>
+                </div>
 
-        <!-- Tabla de Inventario -->
-        <section class="mb-8">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Detalle del Inventario</h2>
-            <div class="overflow-x-auto rounded-lg shadow-xl border border-gray-200">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
-                            <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
-                            <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">USD Unitario</th>
-                            <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Bs. Unitario</th>
-                            <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total USD</th>
-                            <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Bs.</th>
-                            <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="inventory-table-body" class="bg-white divide-y divide-gray-200">
-                        <!-- Filas de productos se insertarán aquí -->
-                    </tbody>
-                </table>
             </div>
-            <div id="empty-state" class="text-center py-10 text-gray-500 hidden">
-                <p>El inventario está vacío. ¡Agrega tu primer producto!</p>
-            </div>
-        </section>
+
+        </div>
+
+        <!-- Sección de Agregar/Editar Producto -->
+        <div class="p-6 bg-white rounded-xl shadow-lg mb-8" id="product-form-card">
+            <h2 class="text-xl font-bold text-edit-color mb-4 border-b pb-2" id="form-title">Agregar Nuevo Producto</h2>
             
-        <!-- Resumen del Inventario y Acciones -->
-        <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Resumen Total -->
-            <div class="md:col-span-2 bg-white border border-gray-200 p-6 rounded-xl shadow-lg">
-                <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Resumen General</h3>
-                <div id="summary-section" class="space-y-3">
-                    <div class="flex justify-between items-center text-lg">
-                        <span class="font-medium text-gray-600">Total General (USD):</span>
-                        <span id="total-usd" class="font-bold text-secondary-usd text-2xl">$0.00</span>
-                    </div>
-                    <div class="flex justify-between items-center text-lg">
-                        <span class="font-medium text-gray-600">Total General (Bs.):</span>
-                        <span id="total-bs" class="font-bold text-primary-bs text-2xl">Bs. 0.00</span>
-                    </div>
-                    <!-- Sección de Saldo (se muestra solo si se establece un saldo inicial) -->
-                    <div id="balance-summary" class="hidden pt-4 border-t border-dashed mt-4 space-y-3">
-                        <!-- Mostrar Saldo Inicial USD -->
-                        <div id="initial-balance-usd-display-row" class="hidden flex justify-between items-center text-base">
-                            <span class="font-medium text-gray-600">Saldo Inicial (USD):</span>
-                            <span id="initial-balance-usd-display" class="font-bold text-gray-800">$0.00</span>
-                        </div>
-                        <!-- Mostrar Saldo Inicial Bs. -->
-                        <div id="initial-balance-bs-display-row" class="hidden flex justify-between items-center text-base">
-                            <span class="font-medium text-gray-600">Saldo Inicial (Bs.):</span>
-                            <span id="initial-balance-display" class="font-bold text-gray-800">Bs. 0.00</span>
-                        </div>
-                        
-                        <!-- Mostrar Saldo Restante USD (moneda principal si no hay tasa) -->
-                        <div id="remaining-usd-summary" class="hidden">
-                            <div class="flex justify-between items-center text-2xl font-bold">
-                                <span class="font-bold text-gray-800">Saldo Restante:</span>
-                                <span id="remaining-usd-total" class="text-success">$0.00</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="font-medium text-gray-600">Equivalente a (Bs.):</span>
-                                <span id="remaining-bs-from-usd" class="font-bold text-primary-bs">Bs. 0.00</span>
-                            </div>
-                        </div>
+            <input type="hidden" id="product_id">
 
-                        <!-- Mostrar Saldo Restante Bs. (moneda principal si hay tasa y se usa saldo Bs.) -->
-                        <div id="remaining-bs-summary" class="hidden">
-                             <div class="flex justify-between items-center text-2xl font-bold">
-                                <span class="font-bold text-gray-800">Saldo Restante:</span>
-                                <span id="remaining-bs-total" class="text-success">Bs. 0.00</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="font-medium text-gray-600">Equivalente a (USD):</span>
-                                <span id="remaining-usd-from-bs" class="font-bold text-secondary-usd">$0.00</span>
-                            </div>
-                        </div>
-                      
-                    </div>
-                </div>
+            <div class="mb-4">
+                <label for="product_name" class="block text-sm font-medium text-gray-700">Nombre del Producto</label>
+                <input type="text" id="product_name" name="product_name" class="w-full mt-1 p-2 border rounded-lg focus:ring-primary-bs focus:border-primary-bs" placeholder="Ej: Shampoo Pantene" required>
             </div>
 
-            <!-- Acciones y Exportar -->
-            <div class="bg-white border border-gray-200 p-6 rounded-xl shadow-lg">
-                <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Acciones</h3>
-                <div class="space-y-3">
-                    <button id="export-pdf-btn" class="w-full bg-red-600 text-white py-3 px-4 rounded-md hover:bg-red-700 transition-colors font-semibold shadow-md flex items-center justify-center">
-                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-                        Exportar a PDF
-                    </button>
-                    <button id="clear-inventory-btn" class="w-full bg-danger text-white py-3 px-4 rounded-md hover:bg-red-700 transition-colors font-semibold shadow-md flex items-center justify-center">
-                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd"></path></svg>
-                        Limpiar Inventario
-                    </button>
-                    <div id="clear-inventory-confirmation" class="hidden bg-yellow-100 border-l-4 border-warning-bs p-4 rounded-md shadow-sm mt-3">
-                        <p class="font-medium text-sm text-gray-800 mb-2">¿Estás seguro de que quieres borrar todo el inventario?</p>
-                        <div class="flex justify-end space-x-2">
-                            <button id="confirm-clear-btn" class="text-white bg-danger hover:bg-red-700 font-bold py-1 px-3 rounded-md text-xs">Sí, Borrar Todo</button>
-                            <button id="cancel-clear-btn" class="text-gray-800 bg-gray-300 hover:bg-gray-400 font-bold py-1 px-3 rounded-md text-xs">Cancelar</button>
-                        </div>
-                    </div>
+            <!-- CAMPO DE CANTIDAD -->
+            <div class="mb-4">
+                <label for="quantity" class="block text-sm font-medium text-gray-700">Cantidad</label>
+                <input type="number" id="quantity" name="quantity" class="w-full mt-1 p-2 border rounded-lg focus:ring-primary-bs focus:border-primary-bs text-lg font-semibold" value="1" min="1" step="1" required>
+            </div>
+
+            <!-- Inputs de Costo Unitario -->
+            <div class="flex space-x-4 mb-4">
+                <div class="flex-1">
+                    <label for="cost_usd" class="block text-sm font-medium text-gray-700">Costo Unitario (USD)</label>
+                    <input type="number" id="cost_usd" name="cost_usd" class="w-full mt-1 p-2 border rounded-lg focus:ring-secondary-usd focus:border-secondary-usd text-lg" value="0.00" min="0.00" step="0.01">
+                </div>
+                <div class="flex-1">
+                    <label for="cost_bs" class="block text-sm font-medium text-gray-700">Costo Unitario (Bs.)</label>
+                    <input type="number" id="cost_bs" name="cost_bs" class="w-full mt-1 p-2 border rounded-lg focus:ring-primary-bs focus:border-primary-bs text-lg" value="0.00" min="0.00" step="0.01"> 
                 </div>
             </div>
-        </section>
+            <p class="text-xs text-gray-500 mb-4">Ingrese el costo unitario. Si ingresa la tasa de cambio, el otro campo se actualizará automáticamente.</p>
+
+            <div class="flex space-x-4">
+                <button id="add_product_btn" class="flex-1 bg-primary-bs text-white py-2 rounded-lg font-semibold hover:bg-opacity-90 transition duration-150 shadow-md">
+                    <i class="ph-plus-circle-fill mr-1"></i>
+                    Agregar Producto
+                </button>
+                <button id="update_product_btn" class="flex-1 bg-edit-color text-white py-2 rounded-lg font-semibold hover:bg-opacity-90 transition duration-150 shadow-md hidden">
+                    <i class="ph-pencil-fill mr-1"></i>
+                    Actualizar Producto
+                </button>
+                <button id="cancel_edit_btn" class="bg-gray-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-gray-600 transition duration-150 shadow-md hidden">
+                    <i class="ph-x-circle-fill mr-1"></i>
+                    Cancelar
+                </button>
+            </div>
+        </div>
+
+        <!-- Sección de Inventario -->
+        <div class="p-6 bg-white rounded-xl shadow-lg">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Inventario de Productos (<span id="product-count">0</span>)</h2>
             
-        <!-- Mensaje de Notificación (Usado en lugar de alert()) -->
-        <div id="notification-box" class="fixed bottom-5 right-5 z-50 transition-transform transform translate-y-20 opacity-0 duration-300">
-            <div class="bg-primary-bs text-white p-4 rounded-lg shadow-xl font-medium flex items-center space-x-2">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                <span id="notification-message"></span>
+            <!-- Botones de Acción -->
+            <div class="flex justify-between items-center mb-4 space-x-2">
+                <button id="export_pdf_btn" class="flex-1 bg-secondary-usd text-white py-2 rounded-lg font-semibold hover:bg-opacity-90 transition duration-150 shadow-md text-sm">
+                    <i class="ph-file-pdf-fill mr-1"></i> Exportar a PDF
+                </button>
+                <button id="clear_inventory_btn" class="flex-1 bg-danger text-white py-2 rounded-lg font-semibold hover:bg-opacity-90 transition duration-150 shadow-md text-sm">
+                    <i class="ph-trash-fill mr-1"></i> Borrar Inventario
+                </button>
             </div>
+
+            <!-- Lista de Productos -->
+            <div id="inventory_list" class="space-y-3">
+                <!-- Los productos se insertarán aquí -->
+            </div>
+
+            <!-- Mensaje de Inventario Vacío -->
+            <div id="empty_message" class="text-center p-6 text-gray-500 hidden">
+                <i class="ph-archive-box-fill text-5xl mb-2"></i>
+                <p>El inventario está vacío. Agrega tu primer producto arriba.</p>
+            </div>
+        </div>
+
+        <!-- Modal de Confirmación de Borrado -->
+        <div id="clear_confirmation_box" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+                <h3 class="text-lg font-bold text-danger mb-4">Confirmar Borrado</h3>
+                <p class="text-gray-700 mb-6">¿Estás absolutamente seguro de que deseas borrar <span class="font-extrabold">TODO</span> el inventario? Esta acción es irreversible.</p>
+                <div class="flex justify-end space-x-4">
+                    <button id="cancel_clear_btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-150">Cancelar</button>
+                    <button id="confirm_clear_btn" class="px-4 py-2 bg-danger text-white rounded-lg hover:bg-red-600 transition duration-150">Sí, Borrar Todo</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Área de Notificaciones (para mensajes tipo toast) -->
+        <div id="notification_area" class="fixed bottom-4 right-4 space-y-2 z-50">
+            <!-- Las notificaciones se insertarán aquí -->
         </div>
 
     </div>
 
     <script>
-        // Declaración de variables globales
-        let products = [];
-        let exchangeRate = 0;
-        let initialBalanceBs = 0;
-        let initialBalanceUsd = 0;
+        // --- Constantes y Variables Globales ---
+        const STORAGE_KEY_PRODUCTS = 'inventory_products';
+        const STORAGE_KEY_CONFIG = 'inventory_financial_config';
 
-        // Referencias a elementos del DOM
-        const formEl = document.getElementById('product-form');
-        const configFormEl = document.getElementById('config-form');
-        const rateInput = document.getElementById('exchange-rate');
-        const balanceBsInput = document.getElementById('initial-balance-bs');
-        const balanceUsdInput = document.getElementById('initial-balance-usd');
-        const nameInput = document.getElementById('product-name');
-        const quantityInput = document.getElementById('product-quantity');
-        const usdInput = document.getElementById('price-usd');
-        const bsInput = document.getElementById('price-bs');
-        const productIdEl = document.getElementById('product-id');
-        const formTitleEl = document.getElementById('form-title');
-        const submitBtn = document.getElementById('submit-btn');
-        const cancelEditBtn = document.getElementById('cancel-edit-btn');
-        const inventoryBody = document.getElementById('inventory-table-body');
-        const totalUsdEl = document.getElementById('total-usd');
-        const totalBsEl = document.getElementById('total-bs');
-        const balanceSummaryEl = document.getElementById('balance-summary');
+        let products = [];
+        let financialConfig = {
+            exchangeRate: 0,
+            initialUsdBalance: 0,
+            initialBsBalance: 0, 
+        };
+        let currentEditingId = null;
+
+        // --- Referencias a Elementos del DOM ---
+        const inventoryList = document.getElementById('inventory_list');
+        const productNameInput = document.getElementById('product_name');
+        const quantityInput = document.getElementById('quantity');
+        const costUsdInput = document.getElementById('cost_usd'); 
+        const costBsInput = document.getElementById('cost_bs');
+        const addProductBtn = document.getElementById('add_product_btn');
+        const updateProductBtn = document.getElementById('update_product_btn');
+        const cancelEditBtn = document.getElementById('cancel_edit_btn');
+        const formTitle = document.getElementById('form-title');
+        const productCountDisplay = document.getElementById('product-count');
+        const emptyMessage = document.getElementById('empty_message');
+        const clearInventoryBtn = document.getElementById('clear_inventory_btn');
+        const exportPdfBtn = document.getElementById('export_pdf_btn');
+        const clearConfirmationBox = document.getElementById('clear_confirmation_box');
+        const cancelClearBtn = document.getElementById('cancel_clear_btn');
+        const confirmClearBtn = document.getElementById('confirm_clear_btn');
         
-        // Referencias de visualización de saldos
-        const initialBalanceBsDisplayEl = document.getElementById('initial-balance-display');
-        const initialBalanceUsdDisplayEl = document.getElementById('initial-balance-usd-display');
-        const initialBalanceBsRowEl = document.getElementById('initial-balance-bs-display-row');
-        const initialBalanceUsdRowEl = document.getElementById('initial-balance-usd-display-row');
-        const remainingBsSummaryEl = document.getElementById('remaining-bs-summary');
-        const remainingUsdSummaryEl = document.getElementById('remaining-usd-summary');
-        const remainingBsTotalEl = document.getElementById('remaining-bs-total');
-        const remainingUsdTotalEl = document.getElementById('remaining-usd-total');
-        const remainingBsFromUsdEl = document.getElementById('remaining-bs-from-usd');
-        const remainingUsdFromBsEl = document.getElementById('remaining-usd-from-bs');
+        // Elementos de Configuración
+        const rateInput = document.getElementById('exchange_rate');
+        const initialUsdInput = document.getElementById('initial_usd_balance');
+        const initialBsInput = document.getElementById('initial_bs_balance');
+        const saveConfigBtn = document.getElementById('save_config_btn');
         
-        const conversionInfoEl = document.getElementById('conversion-info');
-        const emptyStateEl = document.getElementById('empty-state');
-        const exportPdfBtn = document.getElementById('export-pdf-btn');
-        const clearInventoryBtn = document.getElementById('clear-inventory-btn');
-        const clearConfirmationBox = document.getElementById('clear-inventory-confirmation');
-        const confirmClearBtn = document.getElementById('confirm-clear-btn');
-        const cancelClearBtn = document.getElementById('cancel-clear-btn');
-        const notificationBox = document.getElementById('notification-box');
-        const notificationMessage = document.getElementById('notification-message');
-  
+        // Elementos de Resumen
+        const totalSpentBsDisplay = document.getElementById('total-spent-bs');
+        const totalSpentUsdDisplay = document.getElementById('total-spent-usd');
+        const remainingBsDisplay = document.getElementById('remaining-bs-balance');
+        const remainingUsdDisplay = document.getElementById('remaining-usd-balance');
+        
+        // Elementos de Saldo Equivalente (Previsualización de totales)
+        const equivalentUsdDisplay = document.getElementById('equivalent_usd');
+        const equivalentBsDisplay = document.getElementById('equivalent_bs');
+
 
         // --- Funciones de Utilidad ---
 
-        /** Muestra una notificación temporal */
+        function generateUniqueId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        }
+
         function showNotification(message, type = 'success') {
-            const color = type === 'success' ? 'bg-primary-bs' : (type === 'error' ? 'bg-danger' : 'bg-warning-bs text-gray-900');
-            notificationBox.className = `fixed bottom-5 right-5 z-50 transition-transform transform translate-y-20 opacity-0 duration-300`;
-            notificationBox.classList.remove('bg-primary-bs', 'bg-danger', 'bg-warning-bs', 'text-gray-900');
-            notificationBox.classList.add(color);
-            notificationMessage.textContent = message;
+            const notificationArea = document.getElementById('notification_area');
+            const colorClass = {
+                'success': 'bg-success',
+                'danger': 'bg-danger',
+                'warning': 'bg-warning-bs',
+                'info': 'bg-secondary-usd',
+            }[type] || 'bg-gray-800';
 
-            // Mostrar
+            const notification = document.createElement('div');
+            notification.className = `${colorClass} text-white p-3 rounded-lg shadow-xl transition-all duration-300 transform translate-x-0 opacity-100 max-w-xs`;
+            notification.textContent = message;
+
+            notificationArea.appendChild(notification);
+
+            // Ocultar y remover después de 3 segundos
             setTimeout(() => {
-                notificationBox.classList.remove('translate-y-20', 'opacity-0');
-                notificationBox.classList.add('translate-y-0', 'opacity-100');
-            }, 10);
-
-            // Ocultar
-            setTimeout(() => {
-                notificationBox.classList.remove('translate-y-0', 'opacity-100');
-                notificationBox.classList.add('translate-y-20', 'opacity-0');
-            }, 4000); // 4 segundos para mensajes importantes/errores
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => notification.remove(), 500);
+            }, 3000);
         }
 
-        /** Formatea un número como moneda USD */
-        function formatUsd(amount) {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-        }
-  
-        /** Formatea un número como moneda Bs. */
-        function formatBs(amount) {
-            return `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
-        }
-
-        // --- Almacenamiento (localStorage) ---
-
-        function saveProducts() {
-            localStorage.setItem('inventoryProducts', JSON.stringify(products));
-        }
+        // --- Manejo de Datos (localStorage) ---
 
         function loadProducts() {
-            const data = localStorage.getItem('inventoryProducts');
-            products = data ? JSON.parse(data) : [];
+            const storedProducts = localStorage.getItem(STORAGE_KEY_PRODUCTS);
+            if (storedProducts) {
+                try {
+                    products = JSON.parse(storedProducts);
+                } catch (e) {
+                    console.error("Error loading products:", e);
+                    products = [];
+                }
+            }
         }
 
-        function saveFinancialConfig() {
-            const config = {
-                rate: exchangeRate,
-                balanceBs: initialBalanceBs,
-                balanceUsd: initialBalanceUsd
-            };
-            localStorage.setItem('inventoryConfig', JSON.stringify(config));
-            showNotification('Configuración guardada.', 'success');
+        function saveProducts() {
+            localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
+            renderFinancialSummary();
         }
 
         function loadFinancialConfig() {
-            const data = localStorage.getItem('inventoryConfig');
-            if (data) {
-                const config = JSON.parse(data);
-                exchangeRate = parseFloat(config.rate) || 0;
-                initialBalanceBs = parseFloat(config.balanceBs) || 0;
-                initialBalanceUsd = parseFloat(config.balanceUsd) || 0;
-
-                rateInput.value = exchangeRate.toFixed(2);
-                balanceBsInput.value = initialBalanceBs.toFixed(2);
-                balanceUsdInput.value = initialBalanceUsd.toFixed(2);
+            const config = localStorage.getItem(STORAGE_KEY_CONFIG);
+            if (config) {
+                try {
+                    const parsedConfig = JSON.parse(config);
+                    // Asegurar que todos los valores sean números, usando 0 como fallback
+                    financialConfig.exchangeRate = parseFloat(parsedConfig.exchangeRate) || 0;
+                    financialConfig.initialUsdBalance = parseFloat(parsedConfig.initialUsdBalance) || 0;
+                    financialConfig.initialBsBalance = parseFloat(parsedConfig.initialBsBalance) || 0; 
+                } catch (e) {
+                    console.error("Error loading financial config:", e);
+                }
             }
         }
-  
 
-        // --- Lógica del Formulario y Conversión ---
+        function saveFinancialConfig() {
+            // Lee los valores de los inputs y los guarda
+            financialConfig.exchangeRate = parseFloat(rateInput.value) || 0;
+            financialConfig.initialUsdBalance = parseFloat(initialUsdInput.value) || 0;
+            financialConfig.initialBsBalance = parseFloat(initialBsInput.value) || 0; 
 
-        /** Maneja la conversión de precios en tiempo real */
+            localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(financialConfig));
+            renderFinancialSummary();
+            showNotification('Configuración financiera guardada.', 'info');
+        }
+
+        // --- Lógica Financiera ---
+
+        // Función para calcular el total gastado en Bs.
+        function calculateBsTotal() {
+            // Suma el costo total en Bs. de todos los productos
+            return products.reduce((sum, product) => sum + (parseFloat(product.costBs) || 0) * (parseInt(product.quantity) || 0), 0);
+        }
+
+        // Función para calcular el total gastado en USD.
+        function calculateUsdTotal() {
+            // Suma el costo total en USD de todos los productos
+            return products.reduce((sum, product) => sum + (parseFloat(product.costUsd) || 0) * (parseInt(product.quantity) || 0), 0);
+        }
+
+        // Función para calcular y mostrar el saldo equivalente (Previsualización)
+        function updateEquivalentBalance() {
+            const rate = parseFloat(rateInput.value) || 0;
+            const initialUsd = parseFloat(initialUsdInput.value) || 0;
+            const initialBs = parseFloat(initialBsInput.value) || 0;
+            
+            // Lógica para Presupuesto Total en Bolívares (Bs.)
+            let totalBsBudget = initialBs;
+            if (rate > 0) {
+                totalBsBudget += initialUsd * rate;
+            }
+            // CAMBIO SOLICITADO: QUITAR LA PALABRA COMBINADO EN LA ETIQUETA
+            equivalentBsDisplay.textContent = `${totalBsBudget.toFixed(2)} Bs.`; 
+
+            // Lógica para Presupuesto Total en Dólares (USD)
+            let totalUsdBudget = initialUsd;
+            if (rate > 0) {
+                totalUsdBudget += initialBs / rate;
+            }
+            // CAMBIO SOLICITADO: QUITAR LA PALABRA COMBINADO EN LA ETIQUETA
+            equivalentUsdDisplay.textContent = `${totalUsdBudget.toFixed(2)} USD`;
+        }
+
+
+        // Renderiza el resumen financiero 
+        function renderFinancialSummary() {
+            const totalBsSpent = calculateBsTotal();
+            const totalUsdSpent = calculateUsdTotal();
+            const rate = financialConfig.exchangeRate;
+            
+            // 1. Sincroniza los inputs de configuración con los valores guardados
+            rateInput.value = financialConfig.exchangeRate.toFixed(2);
+            initialUsdInput.value = financialConfig.initialUsdBalance.toFixed(2);
+            initialBsInput.value = financialConfig.initialBsBalance.toFixed(2); 
+
+            // ** 1.5. CALCULA EL PRESUPUESTO TOTAL (BASE PARA EL SALDO RESTANTE) **
+            let totalBsBudget = financialConfig.initialBsBalance;
+            let totalUsdBudget = financialConfig.initialUsdBalance;
+
+            if (rate > 0) {
+                // Presupuesto Total Bs = Saldo Inicial Bs + (Saldo Inicial USD * Tasa)
+                totalBsBudget += (financialConfig.initialUsdBalance * rate);
+                
+                // Presupuesto Total USD = Saldo Inicial USD + (Saldo Inicial Bs / Tasa)
+                totalUsdBudget += (financialConfig.initialBsBalance / rate);
+            }
+            
+            // Actualiza la previsualización del total (en el formulario de config)
+            updateEquivalentBalance();
+
+            // 2. Resumen Bs. (Cálculo y Display)
+            // Saldo Restante Bs = Presupuesto Total (Bs) - Total Gastado Bs
+            const remainingBsBalance = totalBsBudget - totalBsSpent; 
+            
+            totalSpentBsDisplay.textContent = `${totalBsSpent.toFixed(2)} Bs.`;
+            remainingBsDisplay.textContent = `${remainingBsBalance.toFixed(2)} Bs.`;
+
+            // CAMBIO SOLICITADO: Lógica de color solo verde o rojo (>=0 verde, <0 rojo)
+            remainingBsDisplay.classList.remove('text-success', 'text-danger', 'text-secondary-usd', 'text-primary-bs', 'text-warning-bs');
+            if (remainingBsBalance < 0) {
+                remainingBsDisplay.classList.add('text-danger'); 
+            } else {
+                remainingBsDisplay.classList.add('text-success'); 
+            }
+
+            // 3. Resumen USD (Cálculo y Display)
+            // Saldo Restante USD = Presupuesto Total (USD) - Total Gastado USD
+            const remainingUsdBalance = totalUsdBudget - totalUsdSpent;
+            
+            totalSpentUsdDisplay.textContent = `${totalUsdSpent.toFixed(2)} USD`;
+            remainingUsdDisplay.textContent = `${remainingUsdBalance.toFixed(2)} USD`;
+            
+            // CAMBIO SOLICITADO: Lógica de color solo verde o rojo (>=0 verde, <0 rojo)
+            remainingUsdDisplay.classList.remove('text-secondary-usd', 'text-success', 'text-danger', 'text-primary-bs', 'text-warning-bs');
+            if (remainingUsdBalance < 0) {
+                remainingUsdDisplay.classList.add('text-danger'); 
+            } else {
+                // Usamos text-secondary-usd o text-success para el positivo, el éxito es más claro
+                remainingUsdDisplay.classList.add('text-success'); 
+            }
+        }
+        
+        // Lógica de conversión en tiempo real
         function handlePriceInput(source) {
-            let usdValue = parseFloat(usdInput.value) || 0;
-            let bsValue = parseFloat(bsInput.value) || 0;
-            const rate = exchangeRate;
-            const rateIsZero = rate <= 0; // Bandera para saber si la tasa es 0.00
+            const rate = financialConfig.exchangeRate;
+            let usdValue = parseFloat(costUsdInput.value) || 0;
+            let bsValue = parseFloat(costBsInput.value) || 0;
 
-            // *** Lógica clave para la nueva versión (v12) ***
-            if (rateIsZero) {
-                conversionInfoEl.textContent = 'Tasa de Cambio no establecida. Operando solo con USD.';
-                if (source === 'usd' && usdValue > 0) {
-                     // Si solo operamos en USD, el precio en Bs es 0 (o la tasa es 1 para cálculos internos)
-                     bsInput.value = '0.00';
-                } else if (source === 'bs' && bsValue > 0) {
-                    // Si intenta introducir Bs. y no hay tasa, debe ser 0.00.
-                    bsInput.value = '0.00';
-                    showNotification('No hay Tasa de Cambio. El campo Bs. se ignorará en el cálculo.', 'warning');
+            if (rate > 0) {
+                // Si la fuente es USD, calcula BS.
+                if (source === 'usd') {
+                    bsValue = usdValue * rate;
+                    costBsInput.value = bsValue.toFixed(2);
+                } 
+                // Si la fuente es BS., calcula USD.
+                else if (source === 'bs') {
+                    usdValue = bsValue / rate;
+                    costUsdInput.value = usdValue.toFixed(2);
                 }
+            }
+        }
+
+        // --- Lógica del Inventario (CRUD) ---
+
+        function renderInventory() {
+            inventoryList.innerHTML = '';
+            productCountDisplay.textContent = products.length;
+
+            if (products.length === 0) {
+                emptyMessage.classList.remove('hidden');
+            } else {
+                emptyMessage.classList.add('hidden');
+                
+                products.sort((a, b) => a.name.localeCompare(b.name));
+
+                products.forEach(product => {
+                    // Calcular costos totales para mostrar
+                    const totalCostUsd = (parseFloat(product.costUsd) || 0) * (parseInt(product.quantity) || 0);
+                    const totalCostBs = (parseFloat(product.costBs) || 0) * (parseInt(product.quantity) || 0);
+
+                    const productElement = document.createElement('div');
+                    productElement.className = 'flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition duration-150';
+                    productElement.innerHTML = `
+                        <div class="flex-1 min-w-0 pr-4">
+                            <p class="font-semibold text-gray-800 truncate">${product.name}</p>
+                            <p class="text-xs text-gray-500">Cantidad: <span class="font-bold text-gray-700">${product.quantity}</span> | Costo Unitario (USD): ${product.costUsd.toFixed(2)} | Costo Unitario (Bs.): ${product.costBs.toFixed(2)}</p>
+                            
+                            <!-- MOSTRAR AMBOS TOTALES CLARAMENTE -->
+                            <div class="flex flex-col sm:flex-row sm:space-x-4 mt-1">
+                                <p class="text-sm font-bold text-secondary-usd">Total: ${totalCostUsd.toFixed(2)} USD</p>
+                                <p class="text-sm font-bold text-primary-bs">Total: ${totalCostBs.toFixed(2)} Bs.</p>
+                            </div>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="editProduct('${product.id}')" class="text-edit-color p-2 rounded-full hover:bg-edit-color hover:text-white transition duration-150" aria-label="Editar">
+                                <i class="ph-pencil-fill text-xl"></i>
+                            </button>
+                            <button onclick="deleteProduct('${product.id}')" class="text-danger p-2 rounded-full hover:bg-danger hover:text-white transition duration-150" aria-label="Eliminar">
+                                <i class="ph-trash-fill text-xl"></i>
+                            </button>
+                        </div>
+                    `;
+                    inventoryList.appendChild(productElement);
+                });
+            }
+            renderFinancialSummary(); 
+        }
+
+        // Añadir nuevo producto 
+        function addNewProduct() {
+            const name = productNameInput.value.trim();
+            const quantity = parseInt(quantityInput.value) || 0; 
+            let costUsd = parseFloat(costUsdInput.value) || 0;
+            let costBs = parseFloat(costBsInput.value) || 0;
+
+            if (!name) {
+                showNotification('El nombre del producto es obligatorio.', 'warning');
                 return;
             }
-            // *** Fin Lógica clave ***
-
-            // Lógica de conversión normal (cuando la tasa es > 0)
-            if (source === 'usd' && usdValue >= 0) {
-                if (usdValue === 0 && usdInput.value !== '') {
-                    bsInput.value = '0.00';
-                    conversionInfoEl.textContent = '';
-                } else if (usdValue > 0) {
-                    bsValue = usdValue * rate;
-                    bsInput.value = bsValue.toFixed(2);
-                    conversionInfoEl.textContent = `${formatUsd(usdValue)} x ${rate.toFixed(2)} = ${formatBs(bsValue)}`;
-                } else {
-                    bsInput.value = '';
-                    conversionInfoEl.textContent = '';
-                }
-            } else if (source === 'bs' && bsValue >= 0) {
-                if (bsValue === 0 && bsInput.value !== '') {
-                    usdInput.value = '0.00';
-                    conversionInfoEl.textContent = '';
-                } else if (bsValue > 0) {
-                    usdValue = bsValue / rate;
-                    usdInput.value = usdValue.toFixed(2);
-                    conversionInfoEl.textContent = `${formatBs(bsValue)} / ${rate.toFixed(2)} = ${formatUsd(usdValue)}`;
-                } else {
-                    usdInput.value = '';
-                    conversionInfoEl.textContent = '';
-                }
-            } else {
-                conversionInfoEl.textContent = 'Introduce un valor para la conversión.';
-            }
-            
-            // Si el campo de precio activo se vacía, asegurar que el otro también lo haga si no hay valores válidos
-            if (usdInput.value === '' && bsInput.value !== '') bsInput.value = '';
-            if (bsInput.value === '' && usdInput.value !== '') usdInput.value = '';
-        }
-  
-
-        /** Agrega o actualiza un producto en la lista */
-        function addOrUpdateProduct(e) {
-            e.preventDefault();
-
-            const mode = formEl.dataset.mode;
-            const id = productIdEl.value;
-            const name = nameInput.value.trim();
-            const quantity = parseInt(quantityInput.value);
-            const priceUsd = parseFloat(usdInput.value);
-            let priceBs = parseFloat(bsInput.value);
-            
-            const rate = exchangeRate;
-            const rateIsZero = rate <= 0;
-
-            if (name === "" || quantity <= 0 || priceUsd <= 0) {
-                 showNotification('Revisa: nombre, cantidad y Precio USD deben ser válidos.', 'error');
+            if (quantity <= 0) {
+                 showNotification('La cantidad debe ser mayor a cero.', 'warning');
                  return;
             }
 
-            // Validación si la Tasa es 0
-            if (rateIsZero) {
-                 // Si la tasa es 0, forzamos Bs. a 0 para que solo cuente USD.
-                 // Esto permite el flujo de solo USD.
-                 priceBs = 0;
-            } else {
-                 // Si la tasa es > 0, necesitamos que el precio en Bs también sea válido
-                 if (priceBs <= 0) {
-                     showNotification('La Tasa de Cambio está establecida. Por favor, asegúrate de que el Precio Unitario (Bs.) también esté calculado y sea válido.', 'error');
-                     return;
-                 }
+            // Validación de costos: al menos uno debe ser positivo
+            if (costUsd <= 0 && costBs <= 0) {
+                showNotification('Debe ingresar un costo unitario válido en Bs. o USD.', 'warning');
+                return;
             }
             
-            // Creamos el nuevo producto/actualizamos
-            const newProduct = {
-                id: mode === 'edit' ? id : crypto.randomUUID(),
-                name,
-                quantity,
-                price: {
-                    usd: priceUsd,
-                    bs: priceBs // Será 0 si la tasa es 0
-                }
-            };
-
-            if (mode === 'add') {
-                products.push(newProduct);
-                showNotification(`"${name}" agregado al inventario.`);
-            } else {
-                const index = products.findIndex(p => p.id === id);
-                if (index !== -1) {
-                    products[index] = newProduct;
-                    showNotification(`"${name}" actualizado.`);
-                    resetForm();
+            // Lógica de Conversión Final (Asegurar que ambos campos tienen valor si la tasa está disponible)
+            if (financialConfig.exchangeRate > 0) {
+                // Si el USD fue el único ingresado, recalcular BS para guardar la conversión más reciente
+                if (costBs === 0 && costUsd > 0) {
+                    costBs = costUsd * financialConfig.exchangeRate;
+                } 
+                // Si el BS fue el único ingresado, recalcular USD para guardar la conversión más reciente
+                else if (costUsd === 0 && costBs > 0) {
+                    costUsd = costBs / financialConfig.exchangeRate;
                 }
             }
 
+            const newProduct = {
+                id: generateUniqueId(),
+                name: name,
+                quantity: quantity, 
+                costUsd: costUsd,
+                costBs: costBs,
+            };
+
+            products.push(newProduct);
             saveProducts();
             renderInventory();
-            formEl.reset();
-            conversionInfoEl.textContent = '';
-        }
-  
-        /** Función para restablecer el formulario al modo "Agregar" */
-        function resetForm() {
-            formTitleEl.textContent = 'Agregar Nuevo Producto';
-            submitBtn.textContent = 'Agregar Producto';
-            submitBtn.classList.remove('bg-edit-color');
-            submitBtn.classList.add('bg-primary-bs');
-            formEl.dataset.mode = 'add';
-            productIdEl.value = '';
-            formEl.reset();
-            cancelEditBtn.classList.add('hidden');
-            conversionInfoEl.textContent = '';
-            usdInput.value = '';
-            bsInput.value = '';
+            resetForm();
+            showNotification(`Producto "${name}" (x${quantity}) agregado.`, 'success');
         }
 
+        // Cargar producto para edición 
+        window.editProduct = function(id) {
+            const product = products.find(p => p.id === id);
+            if (product) {
+                currentEditingId = id;
+                productNameInput.value = product.name;
+                quantityInput.value = product.quantity; 
+                // Asegurar 2 decimales en los inputs de costo
+                costUsdInput.value = product.costUsd.toFixed(2);
+                costBsInput.value = product.costBs.toFixed(2);
+                
+                // Mostrar botones de edición
+                addProductBtn.classList.add('hidden');
+                updateProductBtn.classList.remove('hidden');
+                cancelEditBtn.classList.remove('hidden');
+                formTitle.textContent = 'Editar Producto';
+                document.getElementById('product-form-card').classList.add('border-4', 'border-edit-color', 'shadow-2xl');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
 
-        /** Función CRÍTICA para el modo edición */
-        function editProduct(productId) {
-            const product = products.find(p => p.id === productId);
-            if (!product) {
-                showNotification('Producto no encontrado para editar.', 'error');
+        // Actualizar producto 
+        function updateProduct() {
+            const id = currentEditingId;
+            const name = productNameInput.value.trim();
+            const quantity = parseInt(quantityInput.value) || 0; 
+            let costUsd = parseFloat(costUsdInput.value) || 0;
+            let costBs = parseFloat(costBsInput.value) || 0;
+
+            if (!name || (costUsd <= 0 && costBs <= 0) || quantity <= 0) {
+                showNotification('Verifique nombre, cantidad y costo unitario.', 'warning');
                 return;
             }
-
-            // 1. Establecer el modo edición en el formulario
-            formTitleEl.textContent = 'Editar Producto';
-            submitBtn.textContent = 'Actualizar Producto';
-            submitBtn.classList.remove('bg-primary-bs');
-            submitBtn.classList.add('bg-edit-color');
-            formEl.dataset.mode = 'edit';
-            cancelEditBtn.classList.remove('hidden');
-            formEl.scrollIntoView({ behavior: 'smooth' });
-
-            // 2. Llenar el formulario con los datos del producto
-            nameInput.value = product.name;
-            quantityInput.value = product.quantity;
             
-            // Llenar campos de precio con los valores a dos decimales
-            usdInput.value = product.price.usd.toFixed(2);
-            bsInput.value = product.price.bs.toFixed(2);
-            productIdEl.value = product.id;
+            // Lógica de Conversión Final (Asegurar que ambos campos tienen valor si la tasa está disponible)
+            // Ya que el usuario pudo haber editado un solo campo, nos basamos en el que no es cero
+            if (financialConfig.exchangeRate > 0) {
+                if (costBs === 0 && costUsd > 0) {
+                    costBs = costUsd * financialConfig.exchangeRate;
+                } else if (costUsd === 0 && costBs > 0) {
+                    costUsd = costBs / financialConfig.exchangeRate;
+                }
+                // Si ambos tienen valores, se asume que el usuario los ajustó manualmente.
+            }
 
-            // 3. Recalcular la conversión para asegurar que ambos campos estén sincronizados
-            handlePriceInput('usd');
-        }
-
-        /** Elimina un producto de la lista */
-        function deleteProduct(productId) {
-            const productIndex = products.findIndex(p => p.id === productId);
-            if (productIndex !== -1) {
-                const productName = products[productIndex].name;
-                products.splice(productIndex, 1);
+            const index = products.findIndex(p => p.id === id);
+            if (index !== -1) {
+                products[index].name = name;
+                products[index].quantity = quantity; 
+                products[index].costUsd = costUsd;
+                products[index].costBs = costBs;
+                
                 saveProducts();
                 renderInventory();
-                showNotification(`"${productName}" eliminado.`, 'danger');
+                resetForm();
+                showNotification(`Producto "${name}" actualizado.`, 'success');
             }
         }
-    
 
-        // --- Renderizado y Cálculos ---
+        // Eliminar producto
+        window.deleteProduct = function(id) {
+            const index = products.findIndex(p => p.id === id);
+            if (index !== -1) {
+                const productName = products[index].name;
+                products.splice(index, 1);
+                saveProducts();
+                renderInventory();
+                showNotification(`Producto "${productName}" eliminado.`, 'danger');
+            }
+        }
 
-        /** Calcula el valor total del inventario */
-        function calculateTotal() {
-            const rate = exchangeRate;
-            const rateIsZero = rate <= 0;
+        // Resetear el formulario de producto
+        function resetForm() {
+            currentEditingId = null;
+            productNameInput.value = '';
+            quantityInput.value = '1'; 
+            costUsdInput.value = '0.00';
+            costBsInput.value = '0.00';
             
-            const totals = products.reduce((acc, product) => {
-                const itemTotalUsd = product.price.usd * product.quantity;
-                
-                // Si la tasa es 0, el total Bs. de cada item es 0
-                const itemTotalBs = rateIsZero ? 0 : (product.price.bs * product.quantity);
-                
-                acc.totalUsd += itemTotalUsd;
-                acc.totalBs += itemTotalBs;
-                return acc;
-            }, { totalUsd: 0, totalBs: 0 });
-
-            let remainingBs = 0;
-            let remainingUsd = 0;
-            let activeBalance = ''; // 'Bs', 'USD', or ''
-
-            // Lógica de prioridad de Saldo (USD tiene prioridad)
-            if (initialBalanceUsd > 0) {
-                activeBalance = 'USD';
-                remainingUsd = initialBalanceUsd - totals.totalUsd;
-                // Si hay tasa, calcula el equivalente en Bs. Si no hay tasa, es 0.
-                remainingBs = rateIsZero ? 0 : remainingUsd * rate; 
-            } else if (initialBalanceBs > 0 && !rateIsZero) {
-                // Solo activa Saldo Bs. si hay Saldo Bs. Y HAY TASA DE CAMBIO
-                activeBalance = 'Bs';
-                remainingBs = initialBalanceBs - totals.totalBs;
-                remainingUsd = remainingBs / rate;
-            } else if (initialBalanceBs > 0 && rateIsZero) {
-                 // Caso especial: Saldo Bs. establecido, pero Tasa de Cambio es 0.
-                 // Aunque no es el caso de uso principal del usuario, se prioriza el Saldo USD.
-                 // Si solo hay saldo Bs. y no hay tasa, no se calcula saldo restante confiable.
-                 activeBalance = 'Bs (Sin Tasa)';
-                 remainingBs = initialBalanceBs; // Se mantiene, pero no se resta.
-                 showNotification('Tienes Saldo Inicial Bs. pero sin Tasa de Cambio. El Saldo Restante NO se calculará.', 'warning');
-            }
-
-            return {
-                ...totals,
-                remainingBs,
-                remainingUsd,
-                activeBalance,
-                rateIsZero // Devolvemos el estado de la tasa
-            };
+            addProductBtn.classList.remove('hidden');
+            updateProductBtn.classList.add('hidden');
+            cancelEditBtn.classList.add('hidden');
+            formTitle.textContent = 'Agregar Nuevo Producto';
+            document.getElementById('product-form-card').classList.remove('border-4', 'border-edit-color', 'shadow-2xl');
         }
+        
+        // --- Manejo de la Exportación a PDF ---
 
-        /** Renderiza la tabla de inventario y el resumen */
-        function renderInventory() {
-            inventoryBody.innerHTML = ''; // Limpiar tabla
-            const { totalUsd, totalBs, remainingBs, remainingUsd, activeBalance, rateIsZero } = calculateTotal();
-
-            // 1. Actualizar tabla
-            if (products.length === 0) {
-                emptyStateEl.classList.remove('hidden');
-            } else {
-                emptyStateEl.classList.add('hidden');
-                products.forEach(product => {
-                    const itemTotalUsd = product.price.usd * product.quantity;
-                    const itemTotalBs = rateIsZero ? 0 : product.price.bs * product.quantity;
-                    
-                    // Si la tasa es 0, mostramos 0.00 en Bs en la tabla para ser claros
-                    const displayBsUnit = rateIsZero ? 'Bs. 0.00' : formatBs(product.price.bs);
-                    const displayBsTotal = rateIsZero ? 'Bs. 0.00' : formatBs(itemTotalBs);
-
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-gray-50 transition-colors';
-                    tr.innerHTML = `
-                        <td class="p-3 font-medium text-gray-900">${product.name}</td>
-                        <td class="p-3 text-left font-mono">${product.quantity}</td>
-                        <td class="p-3 text-right font-mono text-secondary-usd">${formatUsd(product.price.usd)}</td>
-                        <td class="p-3 text-right font-mono text-primary-bs">${displayBsUnit}</td>
-                        <td class="p-3 text-right font-bold text-gray-800">${formatUsd(itemTotalUsd)}</td>
-                        <td class="p-3 text-right font-bold text-gray-800">${displayBsTotal}</td>
-                    `;
-                  
-                    // Botones de acción (igual que antes)
-                    const actionsTd = document.createElement('td');
-                    actionsTd.className = 'p-3 text-right space-x-2 whitespace-nowrap';
-                    const editBtn = document.createElement('button');
-                    editBtn.textContent = 'Editar';
-                    editBtn.className = 'text-edit-color hover:text-orange-700 font-semibold text-sm transition-colors mr-2';
-                    editBtn.onclick = () => editProduct(product.id);
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Eliminar';
-                    deleteBtn.className = 'text-red-600 hover:text-red-800 font-semibold text-sm transition-colors';
-                    deleteBtn.onclick = () => deleteProduct(product.id);
-
-                    actionsTd.appendChild(editBtn);
-                    actionsTd.appendChild(deleteBtn);
-                    tr.appendChild(actionsTd);
-                    inventoryBody.appendChild(tr);
-                });
-            }
-          
-            // 2. Actualizar resumen
-            // Si la tasa es 0, el total Bs. es 0.
-            const displayTotalBs = rateIsZero ? 'Bs. 0.00' : formatBs(totalBs);
-
-            totalUsdEl.textContent = formatUsd(totalUsd);
-            totalBsEl.textContent = displayTotalBs;
-
-            // 3. Actualizar sección de saldo (si aplica)
-            balanceSummaryEl.classList.add('hidden');
-            initialBalanceBsRowEl.classList.add('hidden');
-            initialBalanceUsdRowEl.classList.add('hidden');
-            remainingBsSummaryEl.classList.add('hidden');
-            remainingUsdSummaryEl.classList.add('hidden');
-
-            // Mostrar saldos iniciales (si están activos)
-            if (initialBalanceUsd > 0) {
-                initialBalanceUsdRowEl.classList.remove('hidden');
-                initialBalanceUsdDisplayEl.textContent = formatUsd(initialBalanceUsd);
-            }
-            if (initialBalanceBs > 0) {
-                initialBalanceBsRowEl.classList.remove('hidden');
-                initialBalanceBsDisplayEl.textContent = formatBs(initialBalanceBs);
-            }
-
-            if (initialBalanceUsd > 0 || initialBalanceBs > 0) {
-                balanceSummaryEl.classList.remove('hidden');
-            }
-            
-            // Mostrar resumen de saldo restante basado en la moneda activa
-            if (activeBalance === 'USD') {
-                remainingUsdSummaryEl.classList.remove('hidden');
-                remainingUsdTotalEl.textContent = formatUsd(remainingUsd);
-                
-                // Si la tasa es 0, no se muestra el equivalente en Bs.
-                if (!rateIsZero) {
-                    remainingBsFromUsdEl.textContent = formatBs(remainingBs);
-                } else {
-                    remainingBsFromUsdEl.textContent = 'N/A (Sin Tasa)';
-                }
-
-                if (remainingUsd >= 0) {
-                    remainingUsdTotalEl.classList.remove('text-danger');
-                    remainingUsdTotalEl.classList.add('text-success');
-                } else {
-                    remainingUsdTotalEl.classList.remove('text-success');
-                    remainingUsdTotalEl.classList.add('text-danger');
-                }
-            } else if (activeBalance === 'Bs') { // Solo si hay tasa
-                remainingBsSummaryEl.classList.remove('hidden');
-                remainingBsTotalEl.textContent = formatBs(remainingBs);
-                remainingUsdFromBsEl.textContent = formatUsd(remainingUsd);
-
-                if (remainingBs >= 0) {
-                    remainingBsTotalEl.classList.remove('text-danger');
-                    remainingBsTotalEl.classList.add('text-success');
-                } else {
-                    remainingBsTotalEl.classList.remove('text-success');
-                    remainingBsTotalEl.classList.add('text-danger');
-                }
-            }
-            // Si activeBalance es 'Bs (Sin Tasa)', no se muestra el resumen restante, solo los iniciales.
-        }
-  
-
-        // --- Exportar a PDF ---
-
-        /** Genera y descarga el reporte en formato PDF */
         function exportInventoryToPDF() {
-            if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
-                showNotification('Error: Librerías PDF no cargadas correctamente.', 'error');
-                return;
-            }
-
-            const { jsPDF } = window.jspdf;
+            // Inicializa jsPDF con tamaño A4
             const doc = new jsPDF('p', 'mm', 'a4');
             const pageWidth = doc.internal.pageSize.getWidth();
-            let currentY = 10;
-            const margin = 10;
-            const rate = exchangeRate;
-            const rateIsZero = rate <= 0;
+            const margin = 15;
+            let y = margin;
+            
+            // Recalcular presupuestos totales y saldos para el PDF
+            const totalBsSpent = calculateBsTotal();
+            const totalUsdSpent = calculateUsdTotal();
+            const rate = financialConfig.exchangeRate;
+
+            let totalBsBudget = financialConfig.initialBsBalance;
+            let totalUsdBudget = financialConfig.initialUsdBalance;
+            if (rate > 0) {
+                totalBsBudget += (financialConfig.initialUsdBalance * rate);
+                totalUsdBudget += (financialConfig.initialBsBalance / rate);
+            }
+
+            const remainingBsBalance = totalBsBudget - totalBsSpent; 
+            const remainingUsdBalance = totalUsdBudget - totalUsdSpent;
+            
+            let remainingBsInUsd = 0;
+            let remainingUsdInBs = 0;
+
+            if (rate > 0) {
+                remainingBsInUsd = remainingBsBalance / rate;
+                remainingUsdInBs = remainingUsdBalance * rate;
+            }
 
             // Título
             doc.setFontSize(18);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(30);
-            doc.text('Reporte de Inventario', margin, currentY);
-            currentY += 8;
+            doc.text("Inventario de Productos (Bs. / USD)", pageWidth / 2, y, { align: 'center' });
+            y += 8;
 
-            // Subtítulo y Fecha
+            // Resumen Financiero
             doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100);
-            doc.text(`Fecha del Reporte: ${new Date().toLocaleDateString('es-VE')}`, margin, currentY);
-            doc.text(`Tasa de Cambio (USD/Bs.): ${rateIsZero ? 'N/A (Operación en USD)' : rate.toFixed(2)}`, pageWidth - margin, currentY, { align: 'right' });
-            currentY += 8;
-          
-            // Datos de la tabla
-            const tableData = products.map(product => {
-                const totalUsdItem = product.price.usd * product.quantity;
-                const itemTotalBs = rateIsZero ? 0 : product.price.bs * product.quantity;
-
-                // Formateo para PDF
-                const displayBsUnit = rateIsZero ? '0.00' : formatBs(product.price.bs).replace('Bs. ', '');
-                const displayBsTotal = rateIsZero ? '0.00' : formatBs(itemTotalBs).replace('Bs. ', '');
-                
-                return [
-                    product.name,
-                    product.quantity,
-                    formatUsd(product.price.usd).replace('$', ''),
-                    displayBsUnit,
-                    formatUsd(totalUsdItem).replace('$', ''),
-                    displayBsTotal,
-                ];
-            });
-
-            // Configuración de autoTable
-            doc.autoTable({
-                head: [['Producto', 'Cantidad', 'USD Unitario', 'Bs. Unitario', 'Total USD', 'Total Bs.']],
-                body: tableData,
-                startY: currentY,
-                theme: 'striped',
-                headStyles: { fillColor: [74, 124, 89], textColor: 255, fontStyle: 'bold' }, // Color primary-bs
-                columnStyles: {
-                    1: { halign: 'center' }, // Cantidad
-                    2: { halign: 'right' }, // USD Unitario
-                    3: { halign: 'right' }, // Bs. Unitario
-                    4: { halign: 'right', fontStyle: 'bold' }, // Total USD
-                    5: { halign: 'right', fontStyle: 'bold' }, // Total Bs.
-                },
-                didDrawPage: function(data) {
-                    doc.setFontSize(8);
-                    doc.text('Página ' + doc.internal.getNumberOfPages(), pageWidth - margin, doc.internal.pageSize.getHeight() - margin, { align: 'right' });
-                }
-            });
-          
-            currentY = doc.autoTable.previous.finalY + 10;
-
-            // Resumen de Totales y Saldo
-            const { totalUsd, totalBs, remainingBs, remainingUsd, activeBalance } = calculateTotal();
-            const totalUsdText = formatUsd(totalUsd).replace('$', '');
-            // Mostrar 0.00 si la tasa es cero
-            const totalBsText = rateIsZero ? '0.00' : formatBs(totalBs).replace('Bs. ', '');
-            
-            doc.setFontSize(11);
+            doc.text(`Tasa de Cambio (Bs./USD): ${financialConfig.exchangeRate.toFixed(2)}`, margin, y);
+            y += 5;
+            doc.text(`Saldo Inicial Propio (Bs.): ${financialConfig.initialBsBalance.toFixed(2)} Bs. | Saldo Inicial Propio (USD): ${financialConfig.initialUsdBalance.toFixed(2)} USD`, margin, y);
+            y += 5;
+            // Etiqueta del Presupuesto sin la palabra "Combinado"
+            doc.text(`Presupuesto Total (Bs.): ${totalBsBudget.toFixed(2)} Bs. | Presupuesto Total (USD): ${totalUsdBudget.toFixed(2)} USD`, margin, y);
+            y += 5;
+            doc.text(`Total Gastado (Bs.): ${totalBsSpent.toFixed(2)} Bs. | Total Gastado (USD): ${totalUsdSpent.toFixed(2)} USD`, margin, y);
+            y += 5;
+            doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
-            doc.setTextColor(50);
-
-            // Función de ayuda para dibujar líneas de resumen
-            let boxY = currentY;
-            const boxX = pageWidth - margin - 70; // 70mm de ancho para la caja
-            const boxWidth = 70;
-
-            const drawSummaryLine = (label, value, isNegative = false) => {
-                doc.setFont('helvetica', 'normal');
-                doc.text(label, boxX, boxY);
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(isNegative ? 220 : 50); // Rojo si es negativo
-                doc.text(value, boxX + boxWidth, boxY, { align: 'right' });
-                doc.setTextColor(50); // Resetear color
-                boxY += 5;
-            };
-                          
-            // Determinar líneas de resumen
-            let summaryLines = 2; // Siempre están Total USD y Total Bs
-            if (activeBalance === 'USD' || activeBalance === 'Bs') {
-                summaryLines += 3; // Saldo Inicial, Saldo Restante (Principal), Saldo Restante (Equivalente)
-            } else if (initialBalanceUsd > 0) {
-                 summaryLines++; // Solo Saldo Inicial USD
-            } else if (initialBalanceBs > 0) {
-                 summaryLines++; // Solo Saldo Inicial Bs
-            }
+            doc.text(`SALDO RESTANTE FINAL (Bs.): ${remainingBsBalance.toFixed(2)} Bs. (Equiv. ${remainingBsInUsd.toFixed(2)} USD)`, margin, y);
+            y += 5;
+            doc.text(`SALDO RESTANTE FINAL (USD): ${remainingUsdBalance.toFixed(2)} USD (Equiv. ${remainingUsdInBs.toFixed(2)} Bs.)`, margin, y);
+            doc.setFont('helvetica', 'normal');
+            y += 5;
             
-            // Dibujar recuadro de resumen (ajustado dinámicamente)
-            const boxHeight = summaryLines * 5 + 3;
-            doc.setFillColor(240, 240, 240);
-            doc.rect(boxX - 5, currentY - 5, boxWidth + 10, boxHeight, 'F');
-            doc.setTextColor(50);
-
-            boxY = currentY;
-            drawSummaryLine("Total General (USD):", `$${totalUsdText}`);
-            drawSummaryLine("Total General (Bs.):", `Bs. ${totalBsText}`);
+            // Encabezados de la tabla 
+            const tableHeaders = [
+                { title: "Producto", dataKey: "name" },
+                { title: "Cantidad", dataKey: "quantity" },
+                { title: "Costo Unit. (USD)", dataKey: "costUsd" },
+                { title: "Costo Unit. (Bs.)", dataKey: "costBs" },
+                { title: "Total (USD)", dataKey: "totalUsd" },
+                { title: "Total (Bs.)", dataKey: "totalBs" }
+            ];
             
-            if (activeBalance !== '' && activeBalance !== 'Bs (Sin Tasa)') {
-                doc.setDrawColor(200);
-                doc.line(boxX - 5, boxY - 2, boxX + boxWidth + 5, boxY - 2); // Línea divisoria
-                
-                if (activeBalance === 'USD') {
-                    drawSummaryLine("Saldo Inicial (USD):", formatUsd(initialBalanceUsd).replace('$', ''));
-                    drawSummaryLine("Saldo Restante (USD):", formatUsd(remainingUsd).replace('$', ''), remainingUsd < 0);
-                    const equivalentBsText = rateIsZero ? 'N/A' : formatBs(remainingBs).replace('Bs. ', '');
-                    drawSummaryLine("Equivalente (Bs.):", `Bs. ${equivalentBsText}`, remainingUsd < 0 && !rateIsZero);
-                } else if (activeBalance === 'Bs') {
-                    drawSummaryLine("Saldo Inicial (Bs.):", formatBs(initialBalanceBs).replace('Bs. ', ''));
-                    drawSummaryLine("Saldo Restante (Bs.):", formatBs(remainingBs).replace('Bs. ', ''), remainingBs < 0);
-                    drawSummaryLine("Equivalente (USD):", formatUsd(remainingUsd).replace('$', ''), remainingBs < 0);
-                }
-            } else if (initialBalanceUsd > 0 && activeBalance === '') {
-                 // Solo Saldo Inicial USD (si no hay Bs. ni tasa)
-                 doc.setDrawColor(200);
-                 doc.line(boxX - 5, boxY - 2, boxX + boxWidth + 5, boxY - 2);
-                 drawSummaryLine("Saldo Inicial (USD):", formatUsd(initialBalanceUsd).replace('$', ''));
-            } else if (initialBalanceBs > 0 && activeBalance === 'Bs (Sin Tasa)') {
-                 // Solo Saldo Inicial Bs (si no hay USD ni tasa)
-                 doc.setDrawColor(200);
-                 doc.line(boxX - 5, boxY - 2, boxX + boxWidth + 5, boxY - 2);
-                 drawSummaryLine("Saldo Inicial (Bs.):", formatBs(initialBalanceBs).replace('Bs. ', ''));
-            }
-
+            // Datos de la tabla 
+            const tableData = products.map(p => {
+                const totalCostUsd = (parseFloat(p.costUsd) || 0) * (parseInt(p.quantity) || 0);
+                const totalCostBs = (parseFloat(p.costBs) || 0) * (parseInt(p.quantity) || 0);
+                return {
+                    name: p.name,
+                    quantity: p.quantity,
+                    costUsd: (parseFloat(p.costUsd) || 0).toFixed(2),
+                    costBs: (parseFloat(p.costBs) || 0).toFixed(2),
+                    totalUsd: totalCostUsd.toFixed(2),
+                    totalBs: totalCostBs.toFixed(2)
+                };
+            });
+            
+            // Generación de la tabla
+            doc.autoTable({
+                startY: y,
+                head: [tableHeaders.map(h => h.title)],
+                body: tableData.map(row => tableHeaders.map(h => row[h.dataKey])),
+                theme: 'striped',
+                headStyles: { 
+                    fillColor: [0, 56, 101], // secondary-usd color en RGB
+                    fontSize: 8 
+                },
+                styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+                margin: { top: margin, right: margin, bottom: margin, left: margin }
+            });
 
             // Guardar el PDF
-            doc.save(`Inventario_Reporte_${new Date().toISOString().slice(0, 10)}.pdf`);
+            doc.save(`Inventario_Dual_${new Date().toISOString().slice(0, 10)}.pdf`);
+            showNotification('Inventario exportado a PDF.', 'info');
         }
-        
-        /** Función para limpiar el "0.00" al enfocar */
-        function setupClearOnFocus() {
-            const inputs = document.querySelectorAll('.balance-input');
-            inputs.forEach(input => {
-                input.addEventListener('focus', function() {
-                    if (this.value === '0.00' || this.value === '0') {
-                        this.value = '';
-                    }
-                });
-                
-                input.addEventListener('blur', function() {
-                    if (this.value === '') {
-                        this.value = '0.00';
-                    }
-                });
-            });
-        }
-  
 
         // --- Inicialización y Event Listeners ---
 
-        // 1. Manejador de configuración financiera
-        configFormEl.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            exchangeRate = parseFloat(rateInput.value) || 0;
-            initialBalanceBs = parseFloat(balanceBsInput.value) || 0;
-            initialBalanceUsd = parseFloat(balanceUsdInput.value) || 0;
-            
-            const rateIsZero = exchangeRate <= 0;
+        function setupClearOnFocus() {
+            // Limpia el valor predeterminado '0.00' al enfocar
+            [rateInput, initialUsdInput, initialBsInput, costUsdInput, costBsInput, quantityInput].forEach(input => {
+                input.addEventListener('focus', function() {
+                    // Solo limpia si es '0.00', '0', o '1' (para cantidad)
+                    if (['0.00', '0', '1'].includes(this.value)) {
+                        this.value = '';
+                    }
+                });
+                input.addEventListener('blur', function() {
+                    // Restablece valores por defecto si está vacío
+                    if (this.value === '' || isNaN(parseFloat(this.value))) {
+                        if (this.id === 'quantity') {
+                            this.value = '1';
+                        } else {
+                            this.value = '0.00';
+                        }
+                    }
+                });
+            });
+        }
+        
+        // 1. Manejadores de configuración
+        saveConfigBtn.addEventListener('click', saveFinancialConfig);
 
-            if (initialBalanceBs > 0 && initialBalanceUsd > 0) {
-                 showNotification('Se recomienda usar solo un tipo de Saldo Inicial. Se priorizará el Saldo USD.', 'warning');
-            }
-            
-            if (initialBalanceBs > 0 && rateIsZero) {
-                 showNotification('Advertencia: Tienes Saldo Bs. sin Tasa de Cambio. El saldo restante en Bs. NO se calculará.', 'warning');
-            }
-            
-            saveFinancialConfig();
-            renderInventory(); // Volver a renderizar para actualizar resumen con nueva tasa/saldo
+        // AGREGAR LISTENERS PARA ACTUALIZAR EL EQUIVALENTE AL CAMBIAR CUALQUIER SALDO O LA TASA
+        [rateInput, initialUsdInput, initialBsInput].forEach(input => {
+            input.addEventListener('input', updateEquivalentBalance);
         });
-  
-        // 2. Manejador de envío de formulario de productos
-        formEl.addEventListener('submit', addOrUpdateProduct);
 
-        // 3. Manejadores para limpieza de inventario (Sin cambios)
+
+        // 2. Manejadores de adición y actualización de productos
+        addProductBtn.addEventListener('click', addNewProduct);
+        updateProductBtn.addEventListener('click', updateProduct);
+
+        // 3. Manejadores para limpieza de inventario
         clearInventoryBtn.addEventListener('click', () => {
             clearConfirmationBox.classList.remove('hidden');
         });
@@ -936,21 +801,21 @@
         // 4. Manejador de exportación
         exportPdfBtn.addEventListener('click', exportInventoryToPDF);
 
-        // 5. Manejador de cancelación de edición (FIX UX)
+        // 5. Manejador de cancelación de edición
         cancelEditBtn.addEventListener('click', resetForm);
 
         // 6. Inicializar la aplicación al cargar la página
         window.onload = function() {
-            loadFinancialConfig();
+            loadFinancialConfig(); 
             loadProducts();
             
             setupClearOnFocus();
             
             // Configurar listeners de entrada de precios para manejar la conversión en tiempo real
-            usdInput.addEventListener('input', () => handlePriceInput('usd'));
-            bsInput.addEventListener('input', () => handlePriceInput('bs'));
+            costUsdInput.addEventListener('input', () => handlePriceInput('usd'));
+            costBsInput.addEventListener('input', () => handlePriceInput('bs'));
             
-            renderInventory(); // Inicializa la vista con los datos guardados
+            renderInventory(); 
         };
     </script>
 </body>
